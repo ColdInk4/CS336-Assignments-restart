@@ -1,9 +1,11 @@
-import os
+import os, cProfile, pstats
 from typing import BinaryIO
 import regex as re
 from collections import Counter
 from multiprocessing import Pool
 from functools import partial
+
+PROFILE_PRETOKENIZATION: bool = False
 
 
 def find_chunk_boundaries(
@@ -95,6 +97,12 @@ def worker(
 def pretokenizer(
     input_path: str | os.PathLike, num_processes: int, special_tokens: list[str]
 ) -> Counter[tuple[bytes, ...]]:
+
+    print("=====Start Pretokenizer=====")
+    if PROFILE_PRETOKENIZATION:
+        profiler = cProfile.Profile()
+        profiler.enable()
+
     frequency_table = Counter()
 
     # 找到各个边界
@@ -115,6 +123,11 @@ def pretokenizer(
     for counter in counters:
         frequency_table.update(counter)
 
+    print("=====Finish Pretokenizer=====")
+    if PROFILE_PRETOKENIZATION:
+        profiler.disable()
+        stats = pstats.Stats(profiler)
+        stats.sort_stats("cumtime").print_stats(20)
     return frequency_table
 
 
