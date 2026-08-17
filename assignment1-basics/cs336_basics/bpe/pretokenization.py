@@ -71,16 +71,14 @@ def worker(
     input_path: str | os.PathLike,
     boundaries: tuple[int, int],
     special_tokens: list[str],
+    pattern: re.Pattern[str],
+    special_tokens_pattern: re.Pattern[str],
 ) -> Counter[str]:
     if PROFILE_WORKER:
         print("====Start working====")
         profiler = cProfile.Profile()
         profiler.enable()
-    # 正则表达式
-    PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
-    special_tokens_PAT = "|".join(
-        [re.escape(special_token) for special_token in special_tokens]
-    )
+
     # 获取当前chunk
     with open(input_path, "rb") as f:
         start, end = boundaries
@@ -88,12 +86,14 @@ def worker(
         chunk = f.read(end - start).decode("utf-8", errors="ignore")
 
     # 确保 special_tokens 为空时不报错
-    if special_tokens_PAT:
-        texts = re.split(special_tokens_PAT, chunk)
+    if special_tokens:
+        texts = special_tokens_pattern.split(chunk)
+    else:
+        texts = [chunk]
 
     freq: Counter[str] = Counter()
     for text in texts:
-        for token in re.finditer(PAT, text):
+        for token in pattern.finditer(text):
             # token太多了，逐个进行`tuple(bytes([i]) for i in token.group().encode("utf-8"))`很消耗，出去后再进行
             # token_bytes = tuple(bytes([i]) for i in token.group().encode("utf-8"))
             freq[token.group()] += 1
@@ -123,8 +123,20 @@ def pretokenizer(
         ]
         boundaries = find_chunk_boundaries(f, num_processes, special_tokens_bytes)
 
+    PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+    pattern = re.compile(PAT)
+    special_tokens_PAT = "|".join(
+        [re.escape(special_token) for special_token in special_tokens]
+    )
+    special_tokens_pattern = re.compile(special_tokens_PAT)
     # 锁定 worker 的两个参数
-    cur_worker = partial(worker, input_path, special_tokens=special_tokens)
+    cur_worker = partial(
+        worker,
+        input_path,
+        special_tokens=special_tokens,
+        pattern=pattern,
+        special_tokens_pattern=special_tokens_pattern,
+    )
 
     # 并行做worker
     with Pool(processes=num_processes) as pool:
