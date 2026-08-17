@@ -6,6 +6,7 @@ from multiprocessing import Pool
 from functools import partial
 
 PROFILE_PRETOKENIZATION: bool = False
+PROFILE_WORKER: bool = True
 
 
 def find_chunk_boundaries(
@@ -70,7 +71,11 @@ def worker(
     input_path: str | os.PathLike,
     boundaries: tuple[int, int],
     special_tokens: list[str],
-) -> Counter[tuple[bytes, ...]]:
+) -> Counter[str]:
+    if PROFILE_WORKER:
+        print("====Start working====")
+        profiler = cProfile.Profile()
+        profiler.enable()
     # 正则表达式
     PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
     special_tokens_PAT = "|".join(
@@ -86,11 +91,17 @@ def worker(
     if special_tokens_PAT:
         texts = re.split(special_tokens_PAT, chunk)
 
-    freq = Counter()
+    freq: Counter[str] = Counter()
     for text in texts:
         for token in re.finditer(PAT, text):
-            token_bytes = tuple(bytes([i]) for i in token.group().encode("utf-8"))
-            freq[token_bytes] += 1
+            # token太多了，逐个进行`tuple(bytes([i]) for i in token.group().encode("utf-8"))`很消耗，出去后再进行
+            # token_bytes = tuple(bytes([i]) for i in token.group().encode("utf-8"))
+            freq[token.group()] += 1
+
+    if PROFILE_WORKER:
+        profiler.disable()
+        stats = pstats.Stats(profiler)
+        stats.sort_stats("cumtime").print_stats(20)
     return freq
 
 
@@ -103,7 +114,7 @@ def pretokenizer(
         profiler = cProfile.Profile()
         profiler.enable()
 
-    frequency_table = Counter()
+    frequency_table: Counter[tuple[bytes, ...]] = Counter()
 
     # 找到各个边界
     with open(input_path, "rb") as f:
@@ -117,11 +128,15 @@ def pretokenizer(
 
     # 并行做worker
     with Pool(processes=num_processes) as pool:
-        counters = pool.map(cur_worker, zip(boundaries[:-1], boundaries[1:]))
+        counters: list[Counter[str]] = pool.map(
+            cur_worker, zip(boundaries[:-1], boundaries[1:])
+        )
 
     # 合并各个计数器
     for counter in counters:
-        frequency_table.update(counter)
+        for token, frequency in counter.items():
+            token_bytes = tuple(bytes([i]) for i in token.encode("utf-8"))
+            frequency_table[token_bytes] += frequency
 
     print("=====Finish Pretokenizer=====")
     if PROFILE_PRETOKENIZATION:
