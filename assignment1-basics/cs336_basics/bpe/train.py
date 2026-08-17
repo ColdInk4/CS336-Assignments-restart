@@ -1,8 +1,22 @@
 from cs336_basics.bpe.pretokenization import pretokenizer
 from collections import Counter, defaultdict
 import os, cProfile, pstats
+import heapq
+from dataclasses import dataclass
 
-PROFILE_BPE_TRAINING: bool = False
+PROFILE_BPE_TRAINING: bool = True
+
+
+@dataclass
+class PairCount:
+    pair: tuple[bytes, bytes]
+    count: int
+
+    # 确保用堆的时候能按这个顺序把需要的最大值放到顶部
+    def __lt__(self, other):
+        if self.count != other.count:
+            return self.count > other.count
+        return self.pair > other.pair
 
 
 def train_bpe(
@@ -46,7 +60,6 @@ def train_bpe(
     frequency_by_pretoken_id: dict[int, int] = dict()
     pair_counts: Counter[tuple[bytes, bytes]] = Counter()
     pretoken_ids_by_pair: dict[tuple[bytes, bytes], set[int]] = defaultdict(set)
-
     for pretoken_id, (current_tokens, pretoken_frequency) in enumerate(
         initial_pretoken_frequencies.items()
     ):
@@ -58,9 +71,23 @@ def train_bpe(
         ):
             pair_counts[(left_token, right_token)] += pretoken_frequency
             pretoken_ids_by_pair[(left_token, right_token)].add(pretoken_id)
+
+    # 建堆，来获取最大值
+    heap = []
+    for pair, count in pair_counts.items():
+        heap.append(PairCount(pair, count))
+    heapq.heapify(heap)
+
     # 3.2 找一下出现次数最多，字典序最大的那对，合并并计入词表
     while len(vocab) < vocab_size and pair_counts:
-        selected_pair = max(pair_counts.items(), key=lambda x: (x[1], x[0]))[0]
+        while True:
+            max_pair_count = heapq.heappop(heap)
+            if (
+                max_pair_count.pair in pair_counts
+                and pair_counts[max_pair_count.pair] == max_pair_count.count
+            ):
+                selected_pair = max_pair_count.pair
+                break
         merges.append(selected_pair)
 
         # 更新一下新的词表
@@ -95,9 +122,27 @@ def train_bpe(
                             del pair_counts[
                                 (current_tokens[idx - 1], current_tokens[idx])
                             ]
+                        else:
+                            heapq.heappush(
+                                heap,
+                                PairCount(
+                                    (current_tokens[idx - 1], current_tokens[idx]),
+                                    pair_counts[
+                                        (current_tokens[idx - 1], current_tokens[idx])
+                                    ],
+                                ),
+                            )
+
                         pair_counts[
                             (current_tokens[idx - 1], merged_token)
                         ] += pretoken_frequency
+                        heapq.heappush(
+                            heap,
+                            PairCount(
+                                (current_tokens[idx - 1], merged_token),
+                                pair_counts[(current_tokens[idx - 1], merged_token)],
+                            ),
+                        )
 
                         # 对 pretoken_ids_by_pair 的处理（目前没有处理原先相邻的部分，因为不好判断组合是否还存在）
                         pretoken_ids_by_pair[
@@ -119,10 +164,29 @@ def train_bpe(
                             del pair_counts[
                                 (current_tokens[idx + 1], current_tokens[idx + 2])
                             ]
+                        else:
+                            heapq.heappush(
+                                heap,
+                                PairCount(
+                                    (current_tokens[idx + 1], current_tokens[idx + 2]),
+                                    pair_counts[
+                                        (
+                                            current_tokens[idx + 1],
+                                            current_tokens[idx + 2],
+                                        )
+                                    ],
+                                ),
+                            )
                         pair_counts[
                             (merged_token, current_tokens[idx + 2])
                         ] += pretoken_frequency
-
+                        heapq.heappush(
+                            heap,
+                            PairCount(
+                                (merged_token, current_tokens[idx + 2]),
+                                pair_counts[(merged_token, current_tokens[idx + 2])],
+                            ),
+                        )
                         # 对 pretoken_ids_by_pair 的处理（目前没有处理原先相邻的部分，因为不好判断组合是否还存在）
                         pretoken_ids_by_pair[
                             (merged_token, current_tokens[idx + 2])
@@ -145,5 +209,5 @@ def train_bpe(
 
 if __name__ == "__main__":
     vocab, merges = train_bpe(
-        "data/TinyStoriesV2-GPT4-valid.txt", 10000, ["<|endoftext|>"], 16
+        "data/TinyStoriesV2-GPT4-train.txt", 10000, ["<|endoftext|>"], 16
     )
