@@ -145,10 +145,13 @@ def pretokenizer(
         )
 
     # 合并各个计数器
+    raw_frequency_table = Counter()
     for counter in counters:
-        for token, frequency in counter.items():
-            token_bytes = tuple(bytes([i]) for i in token.encode("utf-8"))
-            frequency_table[token_bytes] += frequency
+        raw_frequency_table.update(counter)
+
+    for token, frequency in raw_frequency_table.items():
+        token_bytes = tuple(bytes([i]) for i in token.encode("utf-8"))
+        frequency_table[token_bytes] += frequency
 
     print("=====Finish Pretokenizer=====")
     if PROFILE_PRETOKENIZATION:
