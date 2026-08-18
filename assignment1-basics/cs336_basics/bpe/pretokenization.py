@@ -6,7 +6,7 @@ from multiprocessing import Pool
 from functools import partial
 
 PROFILE_PRETOKENIZATION: bool = False
-PROFILE_WORKER: bool = True
+PROFILE_WORKER: bool = False
 
 
 def find_chunk_boundaries(

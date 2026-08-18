@@ -4,7 +4,7 @@ import os, cProfile, pstats
 import heapq
 from dataclasses import dataclass
 
-PROFILE_BPE_TRAINING: bool = True
+PROFILE_BPE_TRAINING: bool = False
 
 
 @dataclass
@@ -73,11 +73,8 @@ def train_bpe(
             pretoken_ids_by_pair[(left_token, right_token)].add(pretoken_id)
 
     # 建堆，来获取最大值
-    heap = []
-    for pair, count in pair_counts.items():
-        heap.append(PairCount(pair, count))
+    heap = [PairCount(pair, count) for pair, count in pair_counts.items()]
     heapq.heapify(heap)
-
     # 3.2 找一下出现次数最多，字典序最大的那对，合并并计入词表
     while len(vocab) < vocab_size and pair_counts:
         while True:
@@ -209,5 +206,5 @@ def train_bpe(
 
 if __name__ == "__main__":
     vocab, merges = train_bpe(
-        "data/TinyStoriesV2-GPT4-train.txt", 10000, ["<|endoftext|>"], 16
+        "data/TinyStoriesV2-GPT4-train.txt", 10000, ["<|endoftext|>"], 64
     )
