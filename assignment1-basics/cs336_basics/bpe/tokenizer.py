@@ -1,6 +1,7 @@
 import regex as re
+from collections.abc import Iterable, Iterator
 
-PRETOKEN_PATTERN = (
+PRETOKEN_PATTERN_STR = (
     r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 )
 
@@ -11,6 +12,8 @@ class Tokenizer:
     special_tokens: list[str] | None = None
     vocab_inverse: dict[bytes, int]
     merges_order: dict[tuple[bytes, bytes], int]
+    pretoken_pattern: re.Pattern
+    special_tokens_pattern: re.Pattern | None
 
     def __init__(
         self,
@@ -21,21 +24,22 @@ class Tokenizer:
         self.vocab = vocab
         self.merges = merges
         if special_tokens:
-            self.special_tokens = (
-                sorted(special_tokens, key=len, reverse=True)
-                if special_tokens
-                else None
-            )
+            self.special_tokens = sorted(special_tokens, key=len, reverse=True)
             for special_token in special_tokens:
                 if special_token.encode("utf-8") not in self.vocab.values():
                     self.vocab[len(self.vocab)] = special_token.encode("utf-8")
-
+            special_tokens_pattern_str = "|".join(
+                [re.escape(special_token) for special_token in self.special_tokens]
+            )
+            self.special_tokens_pattern = re.compile(special_tokens_pattern_str)
         else:
-            special_tokens = None
+            self.special_tokens = None
+            self.special_tokens_pattern = None
         self.vocab_inverse = {
             token_bytes: token_id for token_id, token_bytes in self.vocab.items()
         }
         self.merges_order = {merge: i for i, merge in enumerate(merges)}
+        self.pretoken_pattern = re.compile(PRETOKEN_PATTERN_STR)
 
     @classmethod
     def from_files(cls, vocab_filepath, merges_filepath, special_tokens=None):
@@ -60,49 +64,17 @@ class Tokenizer:
 
     def encode(self, text: str) -> list[int]:
         # 1. Pre-tokenize
-        if self.special_tokens:
-            special_tokens_pattern = "|".join(
-                [re.escape(special_token) for special_token in self.special_tokens]
-            )
-            passages = re.split(special_tokens_pattern, text)
-            special_tokens_iterator = re.finditer(special_tokens_pattern, text)
+        if self.special_tokens_pattern:
+            passages = self.special_tokens_pattern.split(text)
+            special_tokens_iterator = self.special_tokens_pattern.finditer(text)
         else:
             passages = [text]
 
         result: list[int] = []
 
         for passage in passages:
-            for pretoken in re.finditer(PRETOKEN_PATTERN, passage):
-                # represent each pre-token as a sequence of UTF-8 bytes,
-                pretoken_bytes = [bytes([i]) for i in pretoken.group().encode("utf-8")]
+            result.extend(self._encode_passage(passage))
 
-                merge_flag = True
-                while merge_flag:
-                    merge_flag = False
-                    merge_pair: tuple[bytes, bytes] | None = None
-                    merge_position = -1
-                    for idx, (left_token, right_token) in enumerate(
-                        zip(pretoken_bytes[:-1], pretoken_bytes[1:])
-                    ):
-                        cur_pair = (left_token, right_token)
-                        if cur_pair in self.merges:
-                            if (not merge_pair) or (
-                                merge_pair
-                                and self.merges_order[merge_pair]
-                                > self.merges_order[cur_pair]
-                            ):
-                                merge_pair = cur_pair
-                                merge_position = idx
-                    if merge_pair:
-                        merge_flag = True
-                        pretoken_bytes = (
-                            pretoken_bytes[:merge_position]
-                            + [merge_pair[0] + merge_pair[1]]
-                            + pretoken_bytes[merge_position + 2 :]
-                        )
-
-                for cur_bytes in pretoken_bytes:
-                    result.append(self.vocab_inverse[cur_bytes])
             if self.special_tokens:
                 cur_special_tokens = next(special_tokens_iterator, None)
                 if cur_special_tokens:
@@ -111,8 +83,55 @@ class Tokenizer:
                     )
         return result
 
+    def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
+        for chunk in iterable:
+            for token in self.encode(chunk):
+                yield token
+
     def decode(self, ids: list[int]) -> str:
 
         return (b"".join(self.vocab[id] for id in ids)).decode(
             "utf-8", errors="replace"
         )
+
+    def _encode_passage(self, passage: str) -> list[int]:
+        result = []
+
+        for pretoken in self.pretoken_pattern.finditer(passage):
+            result.extend(self._encode_pretoken(pretoken.group()))
+
+        return result
+
+    def _encode_pretoken(self, pretoken: str) -> list[int]:
+        result = []
+        # represent each pre-token as a sequence of UTF-8 bytes
+        pretoken_bytes = [bytes([i]) for i in pretoken.encode("utf-8")]
+
+        merge_flag = True
+
+        while merge_flag:
+            merge_flag = False
+            merge_pair: tuple[bytes, bytes] | None = None
+            merge_position = -1
+            for idx, (left_token, right_token) in enumerate(
+                zip(pretoken_bytes[:-1], pretoken_bytes[1:])
+            ):
+                cur_pair = (left_token, right_token)
+                if cur_pair in self.merges_order:
+                    if (not merge_pair) or (
+                        merge_pair
+                        and self.merges_order[merge_pair] > self.merges_order[cur_pair]
+                    ):
+                        merge_pair = cur_pair
+                        merge_position = idx
+            if merge_pair:
+                merge_flag = True
+                pretoken_bytes = (
+                    pretoken_bytes[:merge_position]
+                    + [merge_pair[0] + merge_pair[1]]
+                    + pretoken_bytes[merge_position + 2 :]
+                )
+
+        for cur_bytes in pretoken_bytes:
+            result.append(self.vocab_inverse[cur_bytes])
+        return result
