@@ -11,7 +11,7 @@ class Tokenizer:
     merges: list[tuple[bytes, bytes]]
     special_tokens: list[str] | None = None
     vocab_inverse: dict[bytes, int]
-    merges_order: dict[tuple[bytes, bytes], int]
+    merge_ranks: dict[tuple[bytes, bytes], int]
     pretoken_pattern: re.Pattern
     special_tokens_pattern: re.Pattern | None
 
@@ -38,7 +38,7 @@ class Tokenizer:
         self.vocab_inverse = {
             token_bytes: token_id for token_id, token_bytes in self.vocab.items()
         }
-        self.merges_order = {merge: i for i, merge in enumerate(merges)}
+        self.merge_ranks = {merge: i for i, merge in enumerate(merges)}
         self.pretoken_pattern = re.compile(PRETOKEN_PATTERN_STR)
 
     @classmethod
@@ -66,7 +66,7 @@ class Tokenizer:
         # 1. Pre-tokenize
         if self.special_tokens_pattern:
             passages = self.special_tokens_pattern.split(text)
-            special_tokens_iterator = self.special_tokens_pattern.finditer(text)
+            special_matches = self.special_tokens_pattern.finditer(text)
         else:
             passages = [text]
 
@@ -76,10 +76,10 @@ class Tokenizer:
             result.extend(self._encode_passage(passage))
 
             if self.special_tokens:
-                cur_special_tokens = next(special_tokens_iterator, None)
-                if cur_special_tokens:
+                special_match = next(special_matches, None)
+                if special_match:
                     result.append(
-                        self.vocab_inverse[cur_special_tokens.group().encode("utf-8")]
+                        self.vocab_inverse[special_match.group().encode("utf-8")]
                     )
         return result
 
@@ -97,8 +97,8 @@ class Tokenizer:
     def _encode_passage(self, passage: str) -> list[int]:
         result = []
 
-        for pretoken in self.pretoken_pattern.finditer(passage):
-            result.extend(self._encode_pretoken(pretoken.group()))
+        for pretoken_match in self.pretoken_pattern.finditer(passage):
+            result.extend(self._encode_pretoken(pretoken_match.group()))
 
         return result
 
@@ -107,28 +107,28 @@ class Tokenizer:
         # represent each pre-token as a sequence of UTF-8 bytes
         pretoken_bytes = [bytes([i]) for i in pretoken.encode("utf-8")]
 
-        merge_flag = True
+        merged_flag = True
 
-        while merge_flag:
-            merge_flag = False
-            merge_pair: tuple[bytes, bytes] | None = None
+        while merged_flag:
+            merged_flag = False
+            selected_pair: tuple[bytes, bytes] | None = None
             merge_position = -1
             for idx, (left_token, right_token) in enumerate(
                 zip(pretoken_bytes[:-1], pretoken_bytes[1:])
             ):
                 cur_pair = (left_token, right_token)
-                if cur_pair in self.merges_order:
-                    if (not merge_pair) or (
-                        merge_pair
-                        and self.merges_order[merge_pair] > self.merges_order[cur_pair]
+                if cur_pair in self.merge_ranks:
+                    if (not selected_pair) or (
+                        selected_pair
+                        and self.merge_ranks[selected_pair] > self.merge_ranks[cur_pair]
                     ):
-                        merge_pair = cur_pair
+                        selected_pair = cur_pair
                         merge_position = idx
-            if merge_pair:
-                merge_flag = True
+            if selected_pair:
+                merged_flag = True
                 pretoken_bytes = (
                     pretoken_bytes[:merge_position]
-                    + [merge_pair[0] + merge_pair[1]]
+                    + [selected_pair[0] + selected_pair[1]]
                     + pretoken_bytes[merge_position + 2 :]
                 )
 

@@ -71,7 +71,7 @@ def worker(
     input_path: str | os.PathLike,
     boundaries: tuple[int, int],
     special_tokens: list[str],
-    pattern: re.Pattern[str],
+    pretoken_pattern: re.Pattern[str],
     special_tokens_pattern: re.Pattern[str],
 ) -> Counter[str]:
     if PROFILE_WORKER:
@@ -93,10 +93,8 @@ def worker(
 
     freq: Counter[str] = Counter()
     for text in texts:
-        for token in pattern.finditer(text):
-            # token太多了，逐个进行`tuple(bytes([i]) for i in token.group().encode("utf-8"))`很消耗，出去后再进行
-            # token_bytes = tuple(bytes([i]) for i in token.group().encode("utf-8"))
-            freq[token.group()] += 1
+        for pretoken_match in pretoken_pattern.finditer(text):
+            freq[pretoken_match.group()] += 1
 
     if PROFILE_WORKER:
         profiler.disable()
@@ -123,18 +121,20 @@ def pretokenizer(
         ]
         boundaries = find_chunk_boundaries(f, num_processes, special_tokens_bytes)
 
-    PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
-    pattern = re.compile(PAT)
-    special_tokens_PAT = "|".join(
+    pretoken_pattern_str = (
+        r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+    )
+    pretoken_pattern = re.compile(pretoken_pattern_str)
+    special_tokens_pattern_str = "|".join(
         [re.escape(special_token) for special_token in special_tokens]
     )
-    special_tokens_pattern = re.compile(special_tokens_PAT)
+    special_tokens_pattern = re.compile(special_tokens_pattern_str)
     # 锁定 worker 的两个参数
     cur_worker = partial(
         worker,
         input_path,
         special_tokens=special_tokens,
-        pattern=pattern,
+        pretoken_pattern=pretoken_pattern,
         special_tokens_pattern=special_tokens_pattern,
     )
 
@@ -149,8 +149,8 @@ def pretokenizer(
     for counter in counters:
         raw_frequency_table.update(counter)
 
-    for token, frequency in raw_frequency_table.items():
-        token_bytes = tuple(bytes([i]) for i in token.encode("utf-8"))
+    for pretoken_text, frequency in raw_frequency_table.items():
+        token_bytes = tuple(bytes([i]) for i in pretoken_text.encode("utf-8"))
         frequency_table[token_bytes] += frequency
 
     print("=====Finish Pretokenizer=====")
