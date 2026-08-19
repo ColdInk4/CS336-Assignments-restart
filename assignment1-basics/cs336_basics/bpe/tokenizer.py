@@ -111,19 +111,18 @@ class Tokenizer:
         result = []
         # represent each pre-token as a sequence of UTF-8 bytes
         pretoken_bytes = [bytes([i]) for i in pretoken.encode("utf-8")]
-        old_pretoken_bytes = pretoken_bytes[:]
 
         merged_flag = True
         while merged_flag:
             merged_flag = False
             selected_pair: tuple[bytes, bytes] | None = None
-            new_token_bytes = []
+            new_token_bytes: list[bytes] = []
             for idx, (left_token, right_token) in enumerate(
                 zip(pretoken_bytes[:-1], pretoken_bytes[1:])
             ):
                 cur_pair = (left_token, right_token)
                 if cur_pair in self.merge_ranks:
-                    if (not selected_pair) or (
+                    if (selected_pair is None) or (
                         selected_pair
                         and self.merge_ranks[selected_pair] > self.merge_ranks[cur_pair]
                     ):
