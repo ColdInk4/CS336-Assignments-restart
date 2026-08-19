@@ -14,6 +14,7 @@ class Tokenizer:
     merge_ranks: dict[tuple[bytes, bytes], int]
     pretoken_pattern: re.Pattern
     special_tokens_pattern: re.Pattern | None
+    pretoken_to_ids: dict[str, list[int]]
 
     def __init__(
         self,
@@ -40,6 +41,7 @@ class Tokenizer:
         }
         self.merge_ranks = {merge: i for i, merge in enumerate(merges)}
         self.pretoken_pattern = re.compile(PRETOKEN_PATTERN_STR)
+        self.pretoken_to_ids = dict()
 
     @classmethod
     def from_files(cls, vocab_filepath, merges_filepath, special_tokens=None):
@@ -103,16 +105,19 @@ class Tokenizer:
         return result
 
     def _encode_pretoken(self, pretoken: str) -> list[int]:
+
+        if pretoken in self.pretoken_to_ids:
+            return self.pretoken_to_ids[pretoken]
         result = []
         # represent each pre-token as a sequence of UTF-8 bytes
         pretoken_bytes = [bytes([i]) for i in pretoken.encode("utf-8")]
+        old_pretoken_bytes = pretoken_bytes[:]
 
         merged_flag = True
-
         while merged_flag:
             merged_flag = False
             selected_pair: tuple[bytes, bytes] | None = None
-            merge_position = -1
+            new_token_bytes = []
             for idx, (left_token, right_token) in enumerate(
                 zip(pretoken_bytes[:-1], pretoken_bytes[1:])
             ):
@@ -123,15 +128,25 @@ class Tokenizer:
                         and self.merge_ranks[selected_pair] > self.merge_ranks[cur_pair]
                     ):
                         selected_pair = cur_pair
-                        merge_position = idx
             if selected_pair:
                 merged_flag = True
-                pretoken_bytes = (
-                    pretoken_bytes[:merge_position]
-                    + [selected_pair[0] + selected_pair[1]]
-                    + pretoken_bytes[merge_position + 2 :]
-                )
+                idx = 0
+                while idx < len(pretoken_bytes) - 1:
+                    left_token = pretoken_bytes[idx]
+                    right_token = pretoken_bytes[idx + 1]
+                    if (left_token, right_token) == selected_pair:
+                        new_token_bytes.append(selected_pair[0] + selected_pair[1])
+                        idx += 2
+                    else:
+                        new_token_bytes.append(left_token)
+                        idx += 1
+                if idx == len(pretoken_bytes) - 1:
+                    new_token_bytes.append(pretoken_bytes[-1])
+                pretoken_bytes = new_token_bytes
 
         for cur_bytes in pretoken_bytes:
             result.append(self.vocab_inverse[cur_bytes])
+
+        self.pretoken_to_ids[pretoken] = result
+
         return result
