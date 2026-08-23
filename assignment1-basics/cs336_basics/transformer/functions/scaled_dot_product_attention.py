@@ -1,4 +1,3 @@
-import torch
 from torch import Tensor
 from jaxtyping import Float, Bool
 import einx
