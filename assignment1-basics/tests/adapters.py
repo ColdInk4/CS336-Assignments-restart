@@ -16,6 +16,7 @@ from cs336_basics.transformer.layers import (
     RMSNorm,
     SwiGLU,
     RotaryPositionalEmbedding,
+    MultiheadSelfAttention,
 )
 from cs336_basics.transformer.functions import (
     silu,
@@ -159,7 +160,16 @@ def run_multihead_self_attention(
         Float[Tensor, " ... sequence_length d_model"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
+    my_multihead_self_attention = MultiheadSelfAttention(d_model, num_heads)
+    my_multihead_self_attention.load_state_dict(
+        {
+            "q_proj.weight": q_proj_weight,
+            "k_proj.weight": k_proj_weight,
+            "v_proj.weight": v_proj_weight,
+            "o_proj.weight": o_proj_weight,
+        }
+    )
+    return my_multihead_self_attention(in_features)
 
 
 def run_multihead_self_attention_with_rope(
@@ -199,7 +209,18 @@ def run_multihead_self_attention_with_rope(
         Float[Tensor, " ... sequence_length d_model"]: Tensor with the output of running your optimized, batched multi-headed attention
         implementation with the given QKV projection weights and input features.
     """
-    raise NotImplementedError
+    my_multihead_self_attention = MultiheadSelfAttention(
+        d_model, num_heads, theta, max_seq_len
+    )
+    my_multihead_self_attention.load_state_dict(
+        {
+            "q_proj.weight": q_proj_weight,
+            "k_proj.weight": k_proj_weight,
+            "v_proj.weight": v_proj_weight,
+            "o_proj.weight": o_proj_weight,
+        }
+    )
+    return my_multihead_self_attention(in_features)
 
 
 def run_rope(
