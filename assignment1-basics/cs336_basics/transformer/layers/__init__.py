@@ -1,8 +1,9 @@
-from cs336_basics.transformer.layers.linear import Linear
-from cs336_basics.transformer.layers.embedding import Embedding
-from cs336_basics.transformer.layers.rmsnorm import RMSNorm
-from cs336_basics.transformer.layers.swiglu import SwiGLU
-from cs336_basics.transformer.layers.rope import RotaryPositionalEmbedding
+from .linear import Linear
+from .embedding import Embedding
+from .rmsnorm import RMSNorm
+from .swiglu import SwiGLU
+from .rope import RotaryPositionalEmbedding
+from .multihead_self_attention import MultiheadSelfAttention
 
 __all__ = [
     "Linear",
@@ -10,4 +11,5 @@ __all__ = [
     "RMSNorm",
     "SwiGLU",
     "RotaryPositionalEmbedding",
+    "MultiheadSelfAttention",
 ]

@@ -1,6 +1,6 @@
-from cs336_basics.transformer.functions.silu import silu
-from cs336_basics.transformer.functions.softmax import softmax
-from cs336_basics.transformer.functions.scaled_dot_product_attention import (
+from .silu import silu
+from .softmax import softmax
+from .scaled_dot_product_attention import (
     scaled_dot_product_attention,
 )
 
