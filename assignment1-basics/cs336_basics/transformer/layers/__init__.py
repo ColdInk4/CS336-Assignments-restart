@@ -4,6 +4,7 @@ from .rmsnorm import RMSNorm
 from .swiglu import SwiGLU
 from .rope import RotaryPositionalEmbedding
 from .multihead_self_attention import MultiheadSelfAttention
+from .transformer_block import TransformerBlock
 
 __all__ = [
     "Linear",
@@ -12,4 +13,5 @@ __all__ = [
     "SwiGLU",
     "RotaryPositionalEmbedding",
     "MultiheadSelfAttention",
+    "TransformerBlock",
 ]

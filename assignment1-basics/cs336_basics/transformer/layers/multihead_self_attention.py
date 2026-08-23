@@ -34,7 +34,7 @@ class MultiheadSelfAttention(nn.Module):
         self.q_proj = Linear(d_model, num_heads * d_k, device, dtype)
         self.k_proj = Linear(d_model, num_heads * d_k, device, dtype)
         self.v_proj = Linear(d_model, num_heads * d_v, device, dtype)
-        self.o_proj = Linear(num_heads * d_v, d_model, device, dtype)
+        self.output_proj = Linear(num_heads * d_v, d_model, device, dtype)
 
         if theta is not None and max_seq_len is not None:
             self.rope = RotaryPositionalEmbedding(theta, d_k, max_seq_len, device)
@@ -95,5 +95,5 @@ class MultiheadSelfAttention(nn.Module):
             ),
         )
 
-        result = self.o_proj(merged_heads)
+        result = self.output_proj(merged_heads)
         return result
