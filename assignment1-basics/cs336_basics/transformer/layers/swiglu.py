@@ -2,7 +2,7 @@ import torch
 from jaxtyping import Float
 from torch import Tensor
 import torch.nn as nn
-from cs336_basics.transformer.layers import Linear
+from .linear import Linear
 from cs336_basics.transformer.functions import silu
 
 
