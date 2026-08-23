@@ -3,10 +3,7 @@ from jaxtyping import Float
 from torch import Tensor
 import torch.nn as nn
 from cs336_basics.transformer.layers import Linear
-
-
-def silu(in_features: Float[Tensor, "..."]) -> Float[Tensor, "..."]:
-    return in_features * torch.sigmoid(in_features)
+from cs336_basics.transformer.functions import silu
 
 
 class SwiGLU(nn.Module):

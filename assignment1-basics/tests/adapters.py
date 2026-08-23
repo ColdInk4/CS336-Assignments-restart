@@ -14,9 +14,11 @@ from cs336_basics.transformer.layers import (
     Linear,
     Embedding,
     RMSNorm,
-    silu,
     SwiGLU,
     RotaryPositionalEmbedding,
+)
+from cs336_basics.transformer.functions import (
+    silu,
     softmax,
     scaled_dot_product_attention,
 )

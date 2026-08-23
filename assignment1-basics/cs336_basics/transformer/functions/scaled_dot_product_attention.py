@@ -3,7 +3,7 @@ from torch import Tensor
 from jaxtyping import Float, Bool
 import einx
 from math import sqrt
-from cs336_basics.transformer.layers import softmax
+from cs336_basics.transformer.functions import softmax
 
 
 def scaled_dot_product_attention(
