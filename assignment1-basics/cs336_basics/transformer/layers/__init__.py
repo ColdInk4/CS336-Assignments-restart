@@ -4,6 +4,7 @@ from cs336_basics.transformer.layers.rmsnorm import RMSNorm
 from cs336_basics.transformer.layers.silu import silu
 from cs336_basics.transformer.layers.swiglu import SwiGLU
 from cs336_basics.transformer.layers.rope import RotaryPositionalEmbedding
+from cs336_basics.transformer.layers.softmax import softmax
 
 __all__ = [
     "Linear",
@@ -12,4 +13,5 @@ __all__ = [
     "silu",
     "SwiGLU",
     "RotaryPositionalEmbedding",
+    "softmax",
 ]
