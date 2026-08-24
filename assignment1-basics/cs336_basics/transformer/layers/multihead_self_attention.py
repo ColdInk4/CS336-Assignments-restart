@@ -20,9 +20,13 @@ class MultiheadSelfAttention(nn.Module):
         dtype: torch.dtype | None = None,
     ):
 
-        assert (
-            d_model % num_heads == 0
-        ), f"d_model ({d_model}) must be divisible by num_heads ({num_heads})"
+        if num_heads <= 0:
+            raise ValueError(f"num_heads must be greater than 0, but got {num_heads}")
+
+        if d_model % num_heads != 0:
+            raise ValueError(
+                f"d_model ({d_model}) must be divisible by num_heads ({num_heads})"
+            )
 
         super().__init__()
 
@@ -37,9 +41,17 @@ class MultiheadSelfAttention(nn.Module):
         self.output_proj = Linear(num_heads * d_v, d_model, device, dtype)
 
         if theta is not None and max_seq_len is not None:
-            self.rope = RotaryPositionalEmbedding(theta, d_k, max_seq_len, device)
-        else:
+            if d_k % 2 != 0:
+                raise ValueError(f"d_k must be an even number, but got {d_k}")
+            self.rope = RotaryPositionalEmbedding(
+                theta, d_k, max_seq_len, device, dtype
+            )
+        elif theta is None and max_seq_len is None:
             self.rope = None
+        else:
+            raise ValueError(
+                "theta and max_seq_len must either both be provided or both be None"
+            )
 
     def forward(
         self,

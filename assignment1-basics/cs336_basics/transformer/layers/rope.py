@@ -10,10 +10,17 @@ class RotaryPositionalEmbedding(nn.Module):
     pre_compute_sin: Float[Tensor, "max_seq_len half"]
     pre_compute_cos: Float[Tensor, "max_seq_len half"]
 
-    def __init__(self, theta: float, d_k: int, max_seq_len: int, device=None):
+    def __init__(
+        self,
+        theta: float,
+        d_k: int,
+        max_seq_len: int,
+        device: torch.device | None = None,
+        dtype: torch.dtype | None = None,
+    ):
         super().__init__()
-        i_raw = torch.arange(max_seq_len, device=device)
-        k_raw = torch.arange(d_k // 2, device=device)
+        i_raw = torch.arange(max_seq_len, dtype=dtype, device=device)
+        k_raw = torch.arange(d_k // 2, dtype=dtype, device=device)
         i = cast(Tensor, einx.id("max_seq_len -> max_seq_len 1", i_raw))
         k = cast(Tensor, einx.id("half -> 1 half", k_raw))
         angle = i / (theta ** (2 * k / d_k))
