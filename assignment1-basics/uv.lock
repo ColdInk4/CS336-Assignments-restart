@@ -97,6 +97,7 @@ dependencies = [
     { name = "pytest-timeout" },
     { name = "regex" },
     { name = "ruff" },
+    { name = "symbolica" },
     { name = "tiktoken" },
     { name = "torch" },
     { name = "tqdm" },
@@ -116,6 +117,7 @@ requires-dist = [
     { name = "pytest-timeout" },
     { name = "regex", specifier = ">=2026.3.32" },
     { name = "ruff", specifier = ">=0.15.8" },
+    { name = "symbolica" },
     { name = "tiktoken", specifier = ">=0.12.0" },
     { name = "torch", specifier = "==2.11.0+cu128", index = "https://download.pytorch.org/whl/cu128" },
     { name = "tqdm", specifier = ">=4.67" },
@@ -875,6 +877,18 @@ source = { registry = "https://repo.huaweicloud.com/repository/pypi/simple/" }
 sdist = { url = "https://repo.huaweicloud.com/repository/pypi/packages/1f/ea/49c993d6dfdd7338c9b1000a0f36817ed7ec84577ae2e52f890d1a4ff909/smmap-5.0.3.tar.gz", hash = "sha256:4d9debb8b99007ae47165abc08670bd74cb74b5227dda7f643eccc4e9eb5642c" }
 wheels = [
     { url = "https://repo.huaweicloud.com/repository/pypi/packages/c1/d4/59e74daffcb57a07668852eeeb6035af9f32cbfd7a1d2511f17d2fe6a738/smmap-5.0.3-py3-none-any.whl", hash = "sha256:c106e05d5a61449cf6ba9a1e650227ecfb141590d2a98412103ff35d89fc7b2f" },
+]
+
+[[package]]
+name = "symbolica"
+version = "2.2.0"
+source = { registry = "https://repo.huaweicloud.com/repository/pypi/simple/" }
+sdist = { url = "https://repo.huaweicloud.com/repository/pypi/packages/a7/b2/591ea17b4b02016ed368a0b71cd538bd37a5a4263ebfb57640f1da219b24/symbolica-2.2.0.tar.gz", hash = "sha256:5df429454b65d8f23c45c652a95f162176168d19351c2aca36e826e5c3e99071" }
+wheels = [
+    { url = "https://repo.huaweicloud.com/repository/pypi/packages/4a/78/6dc81602ce01a02ca791ae112904d12c0f3b72ecc2c9c576b8bb46c12658/symbolica-2.2.0-cp37-abi3-macosx_10_12_x86_64.whl", hash = "sha256:9094b99c17af23cd7e4e7e2597b0c3f193dae25494381a1cfeecb9828a7b5ee8" },
+    { url = "https://repo.huaweicloud.com/repository/pypi/packages/33/42/8dc9bf51fccb7cf2bffc6dba4577aa3dbb8c1b9a1a6cae7309c270a420ae/symbolica-2.2.0-cp37-abi3-macosx_11_0_arm64.whl", hash = "sha256:40df78dd01545bcf5c74030b9a1df9d398f1cc24f833d102e1a343e4863f3642" },
+    { url = "https://repo.huaweicloud.com/repository/pypi/packages/f0/dd/7ace090e597c1e9a5dd3ff669d36425074877e8630ed3467cfa57fe23cac/symbolica-2.2.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:879fee0c292a7e6838f18e8e990d3cdc0029cdd53515b0443bdbbff13bc2cd12" },
+    { url = "https://repo.huaweicloud.com/repository/pypi/packages/8b/e0/073296733c0826be26c633223875fb3fdc596d741a85a1052454d457d835/symbolica-2.2.0-cp37-abi3-win_amd64.whl", hash = "sha256:b8809d8f24f345a7df1cd26fbdc4c4dfb24f64d185446fbfdd6f74515fde0640" },
 ]
 
 [[package]]
