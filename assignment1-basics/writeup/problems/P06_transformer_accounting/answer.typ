@@ -5,9 +5,9 @@
   
   总 FLOPs 为 $2 times "vocab_size" times "context_length" times d_"model" + "num_layers" times (6 times "context_length" times d_"model" times d_"ff"+8 times "context_length" times d_"model"^2+4 times "context_length"^2 times d_"model")$
 
-  (a) GPT-2 XL has 1640452800 trainable parameters, which is 6561811200 bytes, about 6.11 GiB.
+  (a) GPT-2 XL has 1,640,452,800 trainable parameters, which is 6,561,811,200 bytes, about 6.11 GiB.
 
-  (b) assuming batch size 1, GPT-2 XL has 3516769894400 FLOPs. 
+  (b) assuming batch size 1, GPT-2 XL has 3,516,769,894,400 FLOPs. 
   `
 Total: 3,516,769,894,400 FLOPs
 |- layers: 3,352,087,756,800 FLOPs (95.32%)
