@@ -1,9 +1,15 @@
 #import "../../template.typ": answer
 #answer[
+
+  assume $B = "batch_size", T = "context_length", L = "num_layers", H = "num_heads", V = "vocab_size", d = d_"model"$
+
   对于我们的模型，可训练的参数为 
-  $2 times "vocab_size" times d_"model"+"num_layers" times (2 times d_"model"+3 times d_"model" times d_"ff"+4 times d_"model"^2)+d_"model"$
-  
-  总 FLOPs 为 $2 times "vocab_size" times "context_length" times d_"model" + "num_layers" times (6 times "context_length" times d_"model" times d_"ff"+8 times "context_length" times d_"model"^2+4 times "context_length"^2 times d_"model")$
+  $d times (1+2 times V+2 times L+4 times L times d+3 times L times d_"ff")$
+
+  总 FLOPs 为 
+  $2 times T times d times (V+2 times T times L+4 times L times d+3 times L times d_"ff")$
+
+  $"FLOPS"/"PARAMETERS" = 2 times T times (V+2 times T times L+4 times L times d+3 times L times d_"ff")/(1+2 times V+2 times L+4 times L times d+3 times L times d_"ff")$
 
   (a) GPT-2 XL has 1,640,452,800 trainable parameters, which is 6,561,811,200 bytes, about 6.11 GiB.
 

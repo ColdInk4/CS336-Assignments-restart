@@ -1,10 +1,11 @@
 from symbolica import S, Expression
 from decimal import Decimal
+from transformer_accounting_TP import TP
 
 # model
 # vocab_size, context_length, num_layers, d_model, num_heads, d_ff
 vocab_size, context_length, num_layers, d_model, num_heads, d_ff = S(
-    "vocab_size", "context_length", "num_layers", "d_model", "num_heads", "d_ff"
+    "V", "T", "L", "d", "H", "d_ff"
 )
 
 GPT2_XL: dict[Expression, int | float | complex | Decimal | tuple[Decimal, Decimal]] = {
@@ -56,82 +57,85 @@ GPT2_XL_Long: dict[
     d_ff: 4288,
 }
 
+# FLOPS
+## token_embeddings "... sequence_length -> ... sequence_length d_model "
+## omitted, because the question asks for matrix-multiply FLOPs
+FLOP_token_embeddings = 0
+
+## layers
+### ln1 " ... sequence_length d_model -> ... sequence_length d_model "
+### omitted, because the question asks for matrix-multiply FLOPs
+FLOP_block_ln1 = 0
+
+### attn
+
+#### q_proj [..., sequence_length, d_model] * [d_model, num_heads * d_k]
+FLOP_block_attn_q_proj = 2 * context_length * d_model * d_model
+
+#### k_proj
+FLOP_block_attn_k_proj = 2 * context_length * d_model * d_model
+
+#### v_proj
+FLOP_block_attn_v_proj = 2 * context_length * d_model * d_model
+
+#### scaled_dot_product_attention
+##### Q K^T
+##### [num_heads sequence_length d_k] * [num_heads sequence_length d_k] -> [num_heads sequence_length sequence_length]
+##### num_heads * 2 * sequence_length * sequence_length * d_k = 2 * sequence_length * sequence_length * d_model
+FLOP_block_attn_q_k = 2 * context_length * context_length * d_model
+##### (Q K^T) V
+##### [num_heads sequence_length sequence_length] * [num_heads sequence_length d_v] -> [num_heads sequence_length d_v]
+##### num_heads * 2 * sequence_length * sequence_length * d_v = 2 * sequence_length * sequence_length * d_model
+FLOP_block_attn_weights_v = 2 * context_length * context_length * d_model
+
+#### output_proj
+FLOP_block_attn_output_proj = 2 * context_length * d_model * d_model
+
+FLOP_block_attn = (
+    FLOP_block_attn_q_proj
+    + FLOP_block_attn_k_proj
+    + FLOP_block_attn_v_proj
+    + FLOP_block_attn_output_proj
+    + FLOP_block_attn_q_k
+    + FLOP_block_attn_weights_v
+)
+
+### ln2
+### omitted, because the question asks for matrix-multiply FLOPs
+FLOP_block_ln2 = 0
+
+### ffn
+#### w1 [..., sequence_length, d_model] * [d_model, d_ff]
+FLOP_block_ffn_w1 = 2 * context_length * d_model * d_ff
+#### w2 [..., sequence_length, d_ff] * [d_ff, d_model]
+FLOP_block_ffn_w2 = 2 * context_length * d_model * d_ff
+#### w3 [..., sequence_length, d_model] * [d_model, d_ff]
+FLOP_block_ffn_w3 = 2 * context_length * d_model * d_ff
+
+FLOP_block_ffn = FLOP_block_ffn_w1 + FLOP_block_ffn_w2 + FLOP_block_ffn_w3
+
+FLOP_layers = (
+    FLOP_block_ln1 + FLOP_block_attn + FLOP_block_ln2 + FLOP_block_ffn
+) * num_layers
+
+## ln_final
+FLOP_ln_final = 0
+
+## lm_head [..., sequence_length, d_model] * [d_model, vocab_size]
+FLOP_lm_head = 2 * context_length * d_model * vocab_size
+
+FLOP = FLOP_token_embeddings + FLOP_layers + FLOP_ln_final + FLOP_lm_head
+
+print(FLOP.factor())
+
+print((FLOP / TP).factor())
+
 
 def compute(
+    FLOP,
     model: dict[Expression, int | float | complex | Decimal | tuple[Decimal, Decimal]],
     name: str,
 ):
-    # FLOPS
-    ## token_embeddings "... sequence_length -> ... sequence_length d_model "
-    ## omitted, because the question asks for matrix-multiply FLOPs
-    FLOP_token_embeddings = 0
-
-    ## layers
-    ### ln1 " ... sequence_length d_model -> ... sequence_length d_model "
-    ### omitted, because the question asks for matrix-multiply FLOPs
-    FLOP_block_ln1 = 0
-
-    ### attn
-
-    #### q_proj [..., sequence_length, d_model] * [d_model, num_heads * d_k]
-    FLOP_block_attn_q_proj = 2 * context_length * d_model * d_model
-
-    #### k_proj
-    FLOP_block_attn_k_proj = 2 * context_length * d_model * d_model
-
-    #### v_proj
-    FLOP_block_attn_v_proj = 2 * context_length * d_model * d_model
-
-    #### scaled_dot_product_attention
-    ##### Q K^T
-    ##### [num_heads sequence_length d_k] * [num_heads sequence_length d_k] -> [num_heads sequence_length sequence_length]
-    ##### num_heads * 2 * sequence_length * sequence_length * d_k = 2 * sequence_length * sequence_length * d_model
-    FLOP_block_attn_q_k = 2 * context_length * context_length * d_model
-    ##### (Q K^T) V
-    ##### [num_heads sequence_length sequence_length] * [num_heads sequence_length d_v] -> [num_heads sequence_length d_v]
-    ##### num_heads * 2 * sequence_length * sequence_length * d_v = 2 * sequence_length * sequence_length * d_model
-    FLOP_block_attn_weights_v = 2 * context_length * context_length * d_model
-
-    #### output_proj
-    FLOP_block_attn_output_proj = 2 * context_length * d_model * d_model
-
-    FLOP_block_attn = (
-        FLOP_block_attn_q_proj
-        + FLOP_block_attn_k_proj
-        + FLOP_block_attn_v_proj
-        + FLOP_block_attn_output_proj
-        + FLOP_block_attn_q_k
-        + FLOP_block_attn_weights_v
-    )
-
-    ### ln2
-    ### omitted, because the question asks for matrix-multiply FLOPs
-    FLOP_block_ln2 = 0
-
-    ### ffn
-    #### w1 [..., sequence_length, d_model] * [d_model, d_ff]
-    FLOP_block_ffn_w1 = 2 * context_length * d_model * d_ff
-    #### w2 [..., sequence_length, d_ff] * [d_ff, d_model]
-    FLOP_block_ffn_w2 = 2 * context_length * d_model * d_ff
-    #### w3 [..., sequence_length, d_model] * [d_model, d_ff]
-    FLOP_block_ffn_w3 = 2 * context_length * d_model * d_ff
-
-    FLOP_block_ffn = FLOP_block_ffn_w1 + FLOP_block_ffn_w2 + FLOP_block_ffn_w3
-
-    FLOP_layers = (
-        FLOP_block_ln1 + FLOP_block_attn + FLOP_block_ln2 + FLOP_block_ffn
-    ) * num_layers
-
-    ## ln_final
-    FLOP_ln_final = 0
-
-    ## lm_head [..., sequence_length, d_model] * [d_model, vocab_size]
-    FLOP_lm_head = 2 * context_length * d_model * vocab_size
-
-    FLOP = FLOP_token_embeddings + FLOP_layers + FLOP_ln_final + FLOP_lm_head
-
-    print(FLOP)
-
     # FLOPs = FLOP_layers + FLOP_lm_head
     total_FLOPs = int(FLOP.evaluate(model).real)
     num_FLOP_layers = int(FLOP_layers.evaluate(model).real)
@@ -189,8 +193,8 @@ def compute(
     print("\n".join(lines))
 
 
-# compute(GPT2_XL, "GPT-2 XL")
-# compute(GPT2_small, "GPT-2 small")
-compute(GPT2_medium, "GPT-2 medium")
-# compute(GPT2_large, "GPT-2 large")
-# compute(GPT2_XL_Long, "GPT-2 XL with long context length")
+# compute(FLOP, GPT2_XL, "GPT-2 XL")
+# compute(FLOP, GPT2_small, "GPT-2 small")
+# compute(FLOP, GPT2_medium, "GPT-2 medium")
+# compute(FLOP, GPT2_large, "GPT-2 large")
+# compute(FLOP, GPT2_XL_Long, "GPT-2 XL with long context length")

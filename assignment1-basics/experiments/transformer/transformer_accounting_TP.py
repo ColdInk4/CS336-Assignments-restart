@@ -4,7 +4,7 @@ from decimal import Decimal
 # model
 # vocab_size, context_length, num_layers, d_model, num_heads, d_ff
 vocab_size, context_length, num_layers, d_model, num_heads, d_ff = S(
-    "vocab_size", "context_length", "num_layers", "d_model", "num_heads", "d_ff"
+    "V", "T", "L", "d", "H", "d_ff"
 )
 
 GPT2_XL: dict[Expression, int | float | complex | Decimal | tuple[Decimal, Decimal]] = {
@@ -63,6 +63,8 @@ TP_ln_final = d_model
 TP_lm_head = d_model * vocab_size
 
 TP = TP_token_embeddings + TP_layers + TP_ln_final + TP_lm_head
+
+print(TP.factor())
 
 print(
     f"GPT-2 XL has {int(TP.evaluate(GPT2_XL).real)} trainable parameters, which is {int(TP.evaluate(GPT2_XL).real)*4} bytes, about {int(TP.evaluate(GPT2_XL).real)*4/1024/1024/1024} GiB."
