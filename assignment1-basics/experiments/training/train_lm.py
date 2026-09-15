@@ -22,13 +22,13 @@ import wandb
 
 @dataclass
 class ModelConfig:
-    vocab_size: int
-    context_length: int
-    d_model: int
-    num_layers: int
-    num_heads: int
-    d_ff: int
-    rope_theta: float
+    vocab_size: int = 10000
+    context_length: int = 256
+    d_model: int = 512
+    d_ff: int = 1344
+    rope_theta: float = 10000
+    num_layers: int = 4
+    num_heads: int = 16
     device: Literal["cpu", "cuda"] = "cuda"
     dtype: Literal["float32"] = "float32"
 
@@ -36,10 +36,10 @@ class ModelConfig:
 @dataclass
 class AdamWConfig:
     lr: float
-    beta1: float
-    beta2: float
-    eps: float
-    weight_decay: float
+    beta1: float = 0.9
+    beta2: float = 0.999
+    eps: float = 1e-8
+    weight_decay: float = 0.01
 
 
 @dataclass
@@ -64,7 +64,7 @@ class TrainingConfig:
 
 @dataclass
 class LogConfig:
-    log_interval: int
+    log_interval: int = 10
 
 
 @dataclass
