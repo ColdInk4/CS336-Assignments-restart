@@ -180,6 +180,7 @@ dependencies = [
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "pandas" },
+    { name = "pypdf" },
     { name = "pytest" },
     { name = "regex" },
     { name = "ruff" },
@@ -196,6 +197,7 @@ requires-dist = [
     { name = "matplotlib" },
     { name = "numpy" },
     { name = "pandas", specifier = ">=2" },
+    { name = "pypdf", specifier = ">=6.10.2" },
     { name = "pytest", specifier = ">=8" },
     { name = "regex", specifier = ">=2026.3.32" },
     { name = "ruff", specifier = ">=0.15.10" },
@@ -998,6 +1000,15 @@ source = { registry = "https://repo.huaweicloud.com/repository/pypi/simple/" }
 sdist = { url = "https://repo.huaweicloud.com/repository/pypi/packages/f3/91/9c6ee907786a473bf81c5f53cf703ba0957b23ab84c264080fb5a450416f/pyparsing-3.3.2.tar.gz", hash = "sha256:c777f4d763f140633dcb6d8a3eda953bf7a214dc4eff598413c070bcdc117cbc" }
 wheels = [
     { url = "https://repo.huaweicloud.com/repository/pypi/packages/10/bd/c038d7cc38edc1aa5bf91ab8068b63d4308c66c4c8bb3cbba7dfbc049f9c/pyparsing-3.3.2-py3-none-any.whl", hash = "sha256:850ba148bd908d7e2411587e247a1e4f0327839c40e2e5e6d05a007ecc69911d" },
+]
+
+[[package]]
+name = "pypdf"
+version = "6.18.1"
+source = { registry = "https://repo.huaweicloud.com/repository/pypi/simple/" }
+sdist = { url = "https://repo.huaweicloud.com/repository/pypi/packages/4f/c2/e537e78a8282b51ed47031566be118debbc34c04782a9afd8739672eb07d/pypdf-6.18.1.tar.gz", hash = "sha256:2441fc839053745638d9b9ddb38ed66beed8d611f47a3036c9838fc4e3074dea" }
+wheels = [
+    { url = "https://repo.huaweicloud.com/repository/pypi/packages/58/13/645df3995075112cb3cce15e8797c205f0f88fb50acc11012b84b071bc22/pypdf-6.18.1-py3-none-any.whl", hash = "sha256:ee93a2665670ecf57ee81d197a4ca548f3dc15f9cefc56e59b8140866aaa3de5" },
 ]
 
 [[package]]
