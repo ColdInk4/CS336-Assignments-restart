@@ -6,16 +6,23 @@ import numpy as np
 def get_batch(
     dataset: npt.NDArray, batch_size: int, context_length: int, device: str
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    start_idx = np.random.randint(0, len(dataset) - context_length, size=batch_size)
-    start_idx_reshaped = start_idx[:, None]
 
-    start_offsets = np.arange(context_length)
-    end_offsets = start_offsets + 1
+    if len(dataset) <= context_length:
+        raise ValueError(
+            f"dataset length {len(dataset)} must be > context_length {context_length}"
+        )
 
-    inputs = dataset[start_idx_reshaped + start_offsets]
-    targets = dataset[start_idx_reshaped + end_offsets]
+    max_start = len(dataset) - context_length
+    starts = np.random.randint(0, len(dataset) - max_start, size=batch_size)  # (B, )
+    offsets = np.arange(context_length + 1)  # (L + 1, )
 
-    inputs_tensor = torch.from_numpy(inputs).to(device)
-    targets_tensor = torch.from_numpy(targets).to(device)
+    idx = starts[:, None] + offsets  # (B, L + 1)
+    windows = dataset[idx]  # (B, L + 1)
 
-    return (inputs_tensor, targets_tensor)
+    inputs = windows[:, :-1]  # (B, L)
+    targets = windows[:, 1:]  # (B, L)
+
+    return (
+        torch.as_tensor(inputs, device=device),
+        torch.as_tensor(targets, device=device),
+    )
