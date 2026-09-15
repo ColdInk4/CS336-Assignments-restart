@@ -4,7 +4,7 @@ import numpy as np
 
 
 def get_batch(
-    dataset: npt.NDArray, batch_size: int, context_length: int, device: str
+    dataset: npt.NDArray, batch_size: int, context_length: int, device: torch.device
 ) -> tuple[torch.Tensor, torch.Tensor]:
 
     if len(dataset) <= context_length:
@@ -13,7 +13,7 @@ def get_batch(
         )
 
     max_start = len(dataset) - context_length
-    starts = np.random.randint(0, len(dataset) - max_start, size=batch_size)  # (B, )
+    starts = np.random.randint(0, max_start, size=batch_size)  # (B, )
     offsets = np.arange(context_length + 1)  # (L + 1, )
 
     idx = starts[:, None] + offsets  # (B, L + 1)
