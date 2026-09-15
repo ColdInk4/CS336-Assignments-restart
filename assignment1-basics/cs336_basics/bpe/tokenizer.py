@@ -54,7 +54,6 @@ class Tokenizer:
                 vocab[token_id] = token_bytes
 
         with open(merges_filepath, "r") as f:
-
             for line in f:
                 parts = line.split()
                 left_token, right_token = bytes.fromhex(parts[0]), bytes.fromhex(
