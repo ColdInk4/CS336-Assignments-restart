@@ -20,7 +20,9 @@ dependencies = [
     "ty>=0.0.26",
     "ruff>=0.15.8",
     "pypdf>=6.10.2",
-    "symbolica"
+    "symbolica",
+    "tyro>=1.0.16",
+    "loguru>=0.7.3",
 ]
 
 [build-system]
