@@ -9,7 +9,7 @@ from cs336_basics.training import (
     cross_entropy,
     gradient_clipping,
 )
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import torch
 import tyro
 from typing import Literal, Union
@@ -17,6 +17,7 @@ import numpy as np
 from loguru import logger
 from pathlib import Path
 import random
+import wandb
 
 
 @dataclass
@@ -55,7 +56,7 @@ class OptimizerConfig:
 class TrainingConfig:
     train_data_path: str
     val_data_path: str
-    max_iters: int
+    max_steps: int
     batch_size: int
     max_l2_norm: float
     seed: int = 42
@@ -87,6 +88,13 @@ class ScheduleConfig:
     cosine_cycle_iters: int
 
 
+@dataclass
+class WandbConfig:
+    project: str = "CS336-new-assignment1"
+    entity: str | None = None  # None 时让 wandb 用环境变量
+    run_name: str | None = None
+
+
 def main(
     model_cfg: ModelConfig,
     optimizer_cfg: OptimizerConfig,
@@ -95,14 +103,39 @@ def main(
     schedule_cfg: ScheduleConfig,
     log_cfg: LogConfig,
     eval_cfg: EvalConfig,
+    wandb_cfg: WandbConfig,
 ):
+    # 设置 seed
     torch.manual_seed(train_cfg.seed)
-    torch.cuda.manual_seed_all(train_cfg.seed)
     np.random.seed(train_cfg.seed)
     random.seed(train_cfg.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(train_cfg.seed)
 
+    # 初始化
     out_dir = Path(ckpt_cfg.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    optim_dict = asdict(optimizer_cfg.optim)
+    optim_dict["kind"] = (
+        type(optimizer_cfg.optim).__name__.replace("Config", "").lower()
+    )
+
+    run = wandb.init(  # Set the wandb entity where your project will be logged (generally your team name).
+        entity=wandb_cfg.entity,
+        # Set the wandb project where this run will be logged.
+        project=wandb_cfg.project,
+        name=wandb_cfg.run_name,
+        # Track hyperparameters and run metadata.
+        config={
+            "model": asdict(model_cfg),
+            "optimizer": optim_dict,
+            "training": asdict(train_cfg),
+            "schedule": asdict(schedule_cfg),
+            "checkpoint": asdict(ckpt_cfg),
+            "eval": asdict(eval_cfg),
+            "log": asdict(log_cfg),
+        },
+    )
 
     device = torch.device(model_cfg.device)
     dtype = getattr(torch, model_cfg.dtype)
@@ -135,57 +168,64 @@ def main(
     if ckpt_cfg.resume_from is not None:
         step = load_checkpoint(ckpt_cfg.resume_from, model, opt)
 
-    while step < train_cfg.max_iters:
-        lr_t = lr_cosine_schedule(
-            step,
-            schedule_cfg.max_learning_rate,
-            schedule_cfg.min_learning_rate,
-            schedule_cfg.warmup_iters,
-            schedule_cfg.cosine_cycle_iters,
-        )
+    try:
+        while step < train_cfg.max_steps:
+            lr_t = lr_cosine_schedule(
+                step,
+                schedule_cfg.max_learning_rate,
+                schedule_cfg.min_learning_rate,
+                schedule_cfg.warmup_iters,
+                schedule_cfg.cosine_cycle_iters,
+            )
 
-        for group in opt.param_groups:
-            group["lr"] = lr_t
+            for group in opt.param_groups:
+                group["lr"] = lr_t
 
-        opt.zero_grad()
+            opt.zero_grad()
 
-        inputs, targets = get_batch(
-            train_data, train_cfg.batch_size, model_cfg.context_length, device
-        )
+            inputs, targets = get_batch(
+                train_data, train_cfg.batch_size, model_cfg.context_length, device
+            )
 
-        logits = model(inputs)
+            logits = model(inputs)
 
-        train_loss = cross_entropy(logits, targets)
+            train_loss = cross_entropy(logits, targets)
 
-        train_loss.backward()
+            train_loss.backward()
 
-        gradient_clipping(model.parameters(), train_cfg.max_l2_norm)
+            gradient_clipping(model.parameters(), train_cfg.max_l2_norm)
 
-        opt.step()
+            opt.step()
 
-        step += 1
-        if step % log_cfg.log_interval == 0:
-            logger.info(f"iter {step:07d} | loss: {train_loss.item():.4f}")
+            step += 1
+            if step % log_cfg.log_interval == 0:
+                logger.info(f"iter {step:07d} | loss: {train_loss.item():.4f}")
+                run.log({"train/loss": train_loss.item(), "lr": lr_t}, step=step)
 
-        if step % eval_cfg.eval_interval == 0:
-            model.eval()
-            with torch.no_grad():
-                total_loss = 0.0
-                for _ in range(eval_cfg.eval_batches):
-                    val_inputs, val_targets = get_batch(
-                        val_data,
-                        train_cfg.batch_size,
-                        model_cfg.context_length,
-                        device,
-                    )
-                    total_loss += cross_entropy(model(val_inputs), val_targets).item()
-                val_loss = total_loss / eval_cfg.eval_batches
-            logger.info(f"iter {step:07d} | eval loss: {val_loss:.4f}")
-            model.train()
+            if step % eval_cfg.eval_interval == 0:
+                model.eval()
+                with torch.no_grad():
+                    total_loss = 0.0
+                    for _ in range(eval_cfg.eval_batches):
+                        val_inputs, val_targets = get_batch(
+                            val_data,
+                            train_cfg.batch_size,
+                            model_cfg.context_length,
+                            device,
+                        )
+                        total_loss += cross_entropy(
+                            model(val_inputs), val_targets
+                        ).item()
+                    val_loss = total_loss / eval_cfg.eval_batches
+                logger.info(f"iter {step:07d} | eval loss: {val_loss:.4f}")
+                run.log({"val/loss": val_loss}, step=step)
+                model.train()
 
-        if step % ckpt_cfg.interval == 0:
-            save_checkpoint(model, opt, step, f"{ckpt_cfg.out_dir}/ckpt_{step:07d}.pt")
-    save_checkpoint(model, opt, step, f"{ckpt_cfg.out_dir}/ckpt_{step:07d}_final.pt")
+            if step % ckpt_cfg.interval == 0:
+                save_checkpoint(model, opt, step, out_dir / f"ckpt_{step:07d}.pt")
+    finally:
+        save_checkpoint(model, opt, step, out_dir / f"ckpt_{step:07d}_final.pt")
+        run.finish()
 
 
 if __name__ == "__main__":
