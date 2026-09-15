@@ -3,6 +3,7 @@ from .optimizer import AdamW
 from .learning_rate_schedule import lr_cosine_schedule
 from .gradient_clip import gradient_clipping
 from .data_loader import get_batch
+from .checkpoint import save_checkpoint, load_checkpoint
 
 __all__ = [
     "cross_entropy",
@@ -10,4 +11,6 @@ __all__ = [
     "lr_cosine_schedule",
     "gradient_clipping",
     "get_batch",
+    "save_checkpoint",
+    "load_checkpoint",
 ]
