@@ -1,0 +1,32 @@
+CUDA_VISIBLE_DEVICES=1 uv run experiments/training/train_lm.py \
+  --train-cfg.train-data-path results/tokenids/ts-train-tokenids.npy \
+  --train-cfg.val-data-path results/tokenids/ts-valid-tokenids.npy \
+  --train-cfg.max-steps 10000 \
+  --train-cfg.batch-size 128 \
+  --train-cfg.max-l2-norm 1.0 \
+  --train-cfg.seed 42 \
+  --ckpt-cfg.interval 1000 \
+  --ckpt-cfg.out-dir experiments/training/TinyStories/ckpt \
+  --log-cfg.log-interval 10 \
+  --eval-cfg.eval-interval 500 \
+  --eval-cfg.eval-batches 20 \
+  --model-cfg.vocab-size 10000 \
+  --model-cfg.context-length 256 \
+  --model-cfg.d-model 512 \
+  --model-cfg.d-ff 1344 \
+  --model-cfg.rope-theta 10000 \
+  --model-cfg.num-layers 4 \
+  --model-cfg.num-heads 16 \
+  --model-cfg.device cuda \
+  --model-cfg.dtype float32 \
+  --schedule-cfg.max-learning-rate 1e-3 \
+  --schedule-cfg.min-learning-rate 1e-4 \
+  --schedule-cfg.warmup-iters 100 \
+  --schedule-cfg.cosine-cycle-iters 10000 \
+  --wandb-cfg.project CS336-new-assignment1 \
+  optimizer-cfg.optim:adam-w-config \
+  --optimizer-cfg.optim.lr 1e-3 \
+  --optimizer-cfg.optim.beta1 0.9 \
+  --optimizer-cfg.optim.beta2 0.999 \
+  --optimizer-cfg.optim.eps 1e-8 \
+  --optimizer-cfg.optim.weight-decay 0.01
