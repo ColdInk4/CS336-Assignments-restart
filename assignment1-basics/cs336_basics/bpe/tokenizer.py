@@ -39,6 +39,11 @@ class Tokenizer:
         self.vocab_inverse = {
             token_bytes: token_id for token_id, token_bytes in self.vocab.items()
         }
+        self.special_token_ids: list[int] = (
+            [self.vocab_inverse[st.encode("utf-8")] for st in self.special_tokens]
+            if self.special_tokens
+            else []
+        )
         self.merge_ranks = {merge: i for i, merge in enumerate(merges)}
         self.pretoken_pattern = re.compile(PRETOKEN_PATTERN_STR)
         self.pretoken_to_ids = dict()

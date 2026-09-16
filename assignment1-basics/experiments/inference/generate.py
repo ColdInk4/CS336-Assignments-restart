@@ -3,48 +3,61 @@ from cs336_basics.transformer.functions import softmax
 from jaxtyping import Int
 import torch
 from torch import Tensor
+import tyro
+from dataclasses import dataclass, field
+from typing import Literal
+from cs336_basics.bpe import Tokenizer
 
 
-@torch.no_grad()
-def generate(
-    model,
-    prompt_ids: Int[Tensor, "1 L"],
-    max_new_tokens,
-    temperature,
-    top_p,
-    special_token_ids: list,
+@dataclass
+class ModelConfig:
+    device: Literal["cpu", "cuda"] = "cuda"
+    dtype: Literal["float32"] = "float32"
+
+
+@dataclass
+class CkptConfig:
+    path: str
+
+
+@dataclass
+class TokenizerConfig:
+    vocab_path: str
+    merges_path: str
+    special: list[str] = field(default_factory=lambda: ["<|endoftext|>"])
+
+
+@dataclass
+class GenerateConfig:
+    temperature: float = 1.0
+    max_new_tokens: int = 500
+    top_p: float = 0.2
+
+
+def main(
+    ckpt_cfg: CkptConfig,
+    model_cfg: ModelConfig,
+    tokenizer_cfg: TokenizerConfig,
+    generate_cfg: GenerateConfig,
+    prompt: str,
 ):
-    model.eval()
-    max_len = prompt_ids.shape[-1] + max_new_tokens
-    while prompt_ids.shape[-1] < max_len:
-        new_token = top_p_sample(model, prompt_ids, temperature, top_p)
-        prompt_ids = torch.cat([prompt_ids, new_token], dim=-1)
-        if new_token.item() in special_token_ids:
-            break
-    return prompt_ids
+    device = torch.device(model_cfg.device)
+    dtype = getattr(torch, model_cfg.dtype)
+    model = TransformerLM.from_checkpoint(ckpt_cfg.path, device=device, dtype=dtype)
+    tokenizer = Tokenizer.from_files(
+        tokenizer_cfg.vocab_path, tokenizer_cfg.merges_path, tokenizer_cfg.special
+    )
+    prompt_ids = torch.tensor(tokenizer.encode(prompt), dtype=torch.long, device=device)
+    result_ids = model.generate_top_p(
+        prompt_ids,
+        max_new_tokens=generate_cfg.max_new_tokens,
+        temperature=generate_cfg.temperature,
+        top_p=generate_cfg.top_p,
+        special_token_ids=tokenizer.special_token_ids,
+    )
+    result = tokenizer.decode(result_ids.tolist())
+    print(result)
 
 
-def top_p_sample(
-    model,
-    prompt_ids: Int[Tensor, "1 L"],
-    temperature: float,
-    top_p: float,
-):
-    logits = model(prompt_ids)  # 1, L, V
-    logits_last = logits[:, -1, :]  # 1, V
-    probs = softmax(logits_last / temperature, dim=-1)  # 1, V
-
-    sorted_probs, sorted_idx = torch.sort(probs, dim=-1, descending=True)  # 1, V
-
-    cum_probs = torch.cumsum(sorted_probs, dim=-1)  # 1, V
-
-    #    cum_probs: a1, a1 + a2, a1 + a2 + a3
-    # sorted_probs: a1,      a2,           a3
-    mask = cum_probs - sorted_probs > top_p
-    sorted_probs = sorted_probs.masked_fill(mask, 0.0)  # 1, V
-
-    sorted_probs = sorted_probs / sorted_probs.sum(dim=-1, keepdim=True)  # 1, V
-    choice = torch.multinomial(sorted_probs, num_samples=1)  # 1, 1
-    next_token = sorted_idx.gather(-1, choice)  # 1, 1
-
-    return next_token
+if __name__ == "__main__":
+    tyro.cli(main)
