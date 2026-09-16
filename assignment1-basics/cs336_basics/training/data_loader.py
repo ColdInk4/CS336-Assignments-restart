@@ -1,11 +1,12 @@
 import numpy.typing as npt
 import torch
 import numpy as np
+from jaxtyping import Int
 
 
 def get_batch(
     dataset: npt.NDArray, batch_size: int, context_length: int, device: torch.device
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[Int[torch.Tensor, "B L"], Int[torch.Tensor, "B L"]]:
 
     if len(dataset) <= context_length:
         raise ValueError(
@@ -22,7 +23,8 @@ def get_batch(
     inputs = windows[:, :-1]  # (B, L)
     targets = windows[:, 1:]  # (B, L)
 
+    # 磁盘存 uint16，进模型前转 LongTensor，Embedding.forward 期望 torch.LongTensor
     return (
-        torch.as_tensor(inputs, device=device),
-        torch.as_tensor(targets, device=device),
+        torch.as_tensor(inputs, device=device, dtype=torch.long),
+        torch.as_tensor(targets, device=device, dtype=torch.long),
     )
