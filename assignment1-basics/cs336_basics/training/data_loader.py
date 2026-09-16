@@ -5,7 +5,10 @@ from jaxtyping import Int
 
 
 def get_batch(
-    dataset: npt.NDArray, batch_size: int, context_length: int, device: torch.device
+    dataset: npt.NDArray,
+    batch_size: int,
+    context_length: int,
+    device: torch.device | str,
 ) -> tuple[Int[torch.Tensor, "B L"], Int[torch.Tensor, "B L"]]:
 
     if len(dataset) <= context_length:
