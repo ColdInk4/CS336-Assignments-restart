@@ -1,5 +1,3 @@
-# cs336_basics/modal_utils.py
-
 import modal
 from pathlib import PurePosixPath
 
@@ -23,7 +21,6 @@ def build_image(*, include_tests: bool = False) -> modal.Image:
 
     image = image.add_local_python_source("cs336_basics")
 
-    # Modal remote container 也需要看到 experiments 里的 train_lm.py / generate.py
     image = image.add_local_dir(
         "experiments",
         remote_path="/root/cs336/experiments",
@@ -45,12 +42,7 @@ VOLUME_MOUNTS: dict[
     str | PurePosixPath,
     modal.Volume | modal.CloudBucketMount,
 ] = {
-    "/root/cs336/results": volume.with_mount_options(
-        sub_path="results",
-    ),
-    "/root/cs336/checkpoints": volume.with_mount_options(
-        sub_path="checkpoints",
-    ),
+    "/root/cs336/storage": volume,
 }
 
 

@@ -51,8 +51,8 @@ def train_remote():
             )
         ),
         train_cfg=TrainingConfig(
-            train_data_path="results/tokenids/ts-train-tokenids.npy",
-            val_data_path="results/tokenids/ts-valid-tokenids.npy",
+            train_data_path="storage/tokenids/ts-train-tokenids.npy",
+            val_data_path="storage/tokenids/ts-valid-tokenids.npy",
             max_steps=10000,
             batch_size=128,
             max_l2_norm=1.0,
@@ -60,7 +60,7 @@ def train_remote():
         ),
         ckpt_cfg=CheckpointConfig(
             interval=1000,
-            out_dir="checkpoints/TinyStories",
+            out_dir="storage/checkpoints/TinyStories",
         ),
         schedule_cfg=ScheduleConfig(
             max_learning_rate=1e-3,
