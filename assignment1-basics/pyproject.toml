@@ -23,6 +23,7 @@ dependencies = [
     "symbolica",
     "tyro>=1.0.16",
     "loguru>=0.7.3",
+    "modal[api-proxy-support]>=1.5.5",
 ]
 
 [build-system]
