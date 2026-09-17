@@ -1,27 +1,35 @@
 # cs336_basics/modal_utils.py
 
-from pathlib import Path, PurePosixPath
-
 import modal
+from pathlib import PurePosixPath
 
 PROJECT_NAME = "cs336-basics"
 
-(DATA_PATH := Path("data")).mkdir(exist_ok=True)
-
 app = modal.App(PROJECT_NAME)
 
-user_volume = modal.Volume.from_name(
+volume = modal.Volume.from_name(
     f"{PROJECT_NAME}-data",
     create_if_missing=True,
 )
 
 
 def build_image(*, include_tests: bool = False) -> modal.Image:
-    image = modal.Image.debian_slim().apt_install("wget", "gzip").uv_sync()
+    image = (
+        modal.Image.debian_slim()
+        .apt_install("wget", "gzip")
+        .uv_sync()
+        .workdir("/root/cs336")
+    )
 
     image = image.add_local_python_source("cs336_basics")
-    image = image.add_local_file("AGENTS.md", "/root/AGENTS.md")
 
+    # Modal remote container 也需要看到 experiments 里的 train_lm.py / generate.py
+    image = image.add_local_dir(
+        "experiments",
+        remote_path="/root/cs336/experiments",
+    )
+
+    image = image.add_local_file("AGENTS.md", "/root/AGENTS.md")
     image = image.add_local_file("CLAUDE.md", "/root/CLAUDE.md")
 
     if include_tests:
@@ -37,16 +45,24 @@ VOLUME_MOUNTS: dict[
     str | PurePosixPath,
     modal.Volume | modal.CloudBucketMount,
 ] = {
-    f"/root/{DATA_PATH}": user_volume,
+    "/root/cs336/results": volume.with_mount_options(
+        sub_path="results",
+    ),
+    "/root/cs336/checkpoints": volume.with_mount_options(
+        sub_path="checkpoints",
+    ),
 }
 
 
 def secrets(
+    include_wandb_secret: bool = False,
     include_huggingface_secret: bool = False,
 ) -> list[modal.Secret]:
     result: list[modal.Secret] = []
 
-    # 需要的时候再添加你自己的 secret
+    if include_wandb_secret:
+        result.append(modal.Secret.from_name("wandb"))
+
     if include_huggingface_secret:
         result.append(modal.Secret.from_name("huggingface"))
 

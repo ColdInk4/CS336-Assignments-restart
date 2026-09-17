@@ -95,7 +95,7 @@ class WandbConfig:
     run_name: str | None = None
 
 
-def main(
+def train(
     model_cfg: ModelConfig,
     optimizer_cfg: OptimizerConfig,
     train_cfg: TrainingConfig,
@@ -230,4 +230,4 @@ def main(
 
 if __name__ == "__main__":
 
-    tyro.cli(main)
+    tyro.cli(train)
