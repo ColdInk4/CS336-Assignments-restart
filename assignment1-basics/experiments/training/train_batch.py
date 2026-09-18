@@ -16,11 +16,21 @@ def train_batch(
     lr: float,
     batch_size: int = 128,
 ):
-
-    TOTAL_TOKEN = 327680000
+    TOTAL_TOKEN = 327_680_000
     context_length = 256
-    max_steps = TOTAL_TOKEN // (batch_size * context_length)
+    tokens_per_step = batch_size * context_length
 
+    max_steps = TOTAL_TOKEN // tokens_per_step
+
+    WARMUP_TOKENS = TOTAL_TOKEN // 100  # 1% of training tokens
+    LOG_TOKENS = TOTAL_TOKEN // 1000  # 0.1%
+    EVAL_TOKENS = TOTAL_TOKEN // 20  # 5%
+    CHECKPOINT_TOKENS = TOTAL_TOKEN // 10  # 10%
+
+    warmup_iters = max(1, WARMUP_TOKENS // tokens_per_step)
+    log_interval = max(1, LOG_TOKENS // tokens_per_step)
+    eval_interval = max(1, EVAL_TOKENS // tokens_per_step)
+    checkpoint_interval = max(1, CHECKPOINT_TOKENS // tokens_per_step)
     train(
         model_cfg=ModelConfig(
             vocab_size=10000,
@@ -51,33 +61,33 @@ def train_batch(
             seed=42,
         ),
         ckpt_cfg=CheckpointConfig(
-            interval=max_steps // 10,
-            out_dir="storage/checkpoints/TinyStories",
+            interval=checkpoint_interval,
+            out_dir=(
+                f"storage/checkpoints/TinyStories"
+                f"/batch-{batch_size}"
+                f"-lr-{lr:g}"
+                f"-tokens-{TOTAL_TOKEN // 1_000_000}M"
+            ),
         ),
         schedule_cfg=ScheduleConfig(
             max_learning_rate=lr,
             min_learning_rate=lr * 0.1,
-            warmup_iters=100,
+            warmup_iters=warmup_iters,
             cosine_cycle_iters=max_steps,
         ),
         log_cfg=LogConfig(
-            log_interval=max_steps // 1000,
+            log_interval=log_interval,
         ),
         eval_cfg=EvalConfig(
-            eval_interval=max_steps // 20,
+            eval_interval=eval_interval,
             eval_batches=20,
         ),
         wandb_cfg=WandbConfig(
             project="CS336-new-assignment1",
-            run_name=f"lr-{lr:g}-steps-{max_steps}-batchsize-{batch_size}",
+            run_name=(
+                f"batch-{batch_size}"
+                f"-lr-{lr:g}"
+                f"-tokens-{TOTAL_TOKEN // 1_000_000}M"
+            ),
         ),
     )
-
-
-def main():
-    for batch_size in [64, 256]:
-        train_batch(3e-3, batch_size)
-
-
-if __name__ == "__main__":
-    main()

@@ -18,6 +18,7 @@ from loguru import logger
 from pathlib import Path
 import random
 import wandb
+import time
 
 
 @dataclass
@@ -182,6 +183,8 @@ def train(
         step = load_checkpoint(ckpt_cfg.resume_from, model, opt)
         tokens_seen = step * train_cfg.batch_size * model_cfg.context_length
 
+    start_time = time.perf_counter()
+
     try:
         while step < train_cfg.max_steps:
             lr_t = lr_cosine_schedule(
@@ -214,11 +217,15 @@ def train(
             step += 1
             tokens_seen += train_cfg.batch_size * model_cfg.context_length
             if step % log_cfg.log_interval == 0:
+                elapsed = time.perf_counter() - start_time
+                tokens_per_sec = tokens_seen / elapsed
+
                 logger.info(f"iter {step:07d} | loss: {train_loss.item():.4f}")
                 run.log(
                     {
                         "train/loss": train_loss.item(),
                         "train/tokens_seen": tokens_seen,
+                        "train/tokens_per_sec": tokens_per_sec,
                         "lr": lr_t,
                     },
                     step=step,
