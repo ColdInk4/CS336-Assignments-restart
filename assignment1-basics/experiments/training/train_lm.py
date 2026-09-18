@@ -136,6 +136,17 @@ def train(
             "log": asdict(log_cfg),
         },
     )
+    run.define_metric("train/tokens_seen")
+
+    run.define_metric(
+        "train/loss",
+        step_metric="train/tokens_seen",
+    )
+
+    run.define_metric(
+        "val/loss",
+        step_metric="train/tokens_seen",
+    )
 
     device = torch.device(model_cfg.device)
     dtype = getattr(torch, model_cfg.dtype)
@@ -165,8 +176,11 @@ def train(
     val_data = np.memmap(train_cfg.val_data_path, dtype=np.uint16, mode="r")
 
     step = 0
+    tokens_seen = 0
+
     if ckpt_cfg.resume_from is not None:
         step = load_checkpoint(ckpt_cfg.resume_from, model, opt)
+        tokens_seen = step * train_cfg.batch_size * model_cfg.context_length
 
     try:
         while step < train_cfg.max_steps:
@@ -198,9 +212,17 @@ def train(
             opt.step()
 
             step += 1
+            tokens_seen += train_cfg.batch_size * model_cfg.context_length
             if step % log_cfg.log_interval == 0:
                 logger.info(f"iter {step:07d} | loss: {train_loss.item():.4f}")
-                run.log({"train/loss": train_loss.item(), "lr": lr_t}, step=step)
+                run.log(
+                    {
+                        "train/loss": train_loss.item(),
+                        "train/tokens_seen": tokens_seen,
+                        "lr": lr_t,
+                    },
+                    step=step,
+                )
 
             if step % eval_cfg.eval_interval == 0:
                 model.eval()
@@ -218,11 +240,17 @@ def train(
                         ).item()
                     val_loss = total_loss / eval_cfg.eval_batches
                 logger.info(f"iter {step:07d} | eval loss: {val_loss:.4f}")
-                run.log({"val/loss": val_loss}, step=step)
+                run.log(
+                    {
+                        "val/loss": val_loss,
+                        "train/tokens_seen": tokens_seen,
+                    },
+                    step=step,
+                )
                 model.train()
 
-            if step % ckpt_cfg.interval == 0:
-                save_checkpoint(model, opt, step, out_dir / f"ckpt_{step:07d}.pt")
+            # if step % ckpt_cfg.interval == 0:
+            #     save_checkpoint(model, opt, step, out_dir / f"ckpt_{step:07d}.pt")
     finally:
         save_checkpoint(model, opt, step, out_dir / f"ckpt_{step:07d}_final.pt")
         run.finish()

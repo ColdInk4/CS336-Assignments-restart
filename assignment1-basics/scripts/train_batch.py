@@ -11,22 +11,8 @@ from experiments.training.train_lm import (
     train,
 )
 
-from cs336_basics.modal_utils import (
-    app,
-    build_image,
-    VOLUME_MOUNTS,
-    secrets,
-)
 
-
-@app.function(
-    image=build_image(),
-    gpu="H100",
-    volumes=VOLUME_MOUNTS,
-    secrets=secrets(include_wandb_secret=True),
-    timeout=60 * 60 * 6,
-)
-def train_remote(
+def train_batch(
     lr: float,
     batch_size: int = 128,
 ):
@@ -88,7 +74,10 @@ def train_remote(
     )
 
 
-@app.local_entrypoint()
 def main():
     for batch_size in [64, 256]:
-        train_remote.remote(3e-3, batch_size)
+        train_batch(3e-3, batch_size)
+
+
+if __name__ == "__main__":
+    main()
