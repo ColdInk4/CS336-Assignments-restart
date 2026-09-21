@@ -71,14 +71,21 @@ def _sync(device):
         torch.cuda.synchronize(device)
 
 
-def _run_step(model, opt, mode, inputs, targets) -> None:
-    logits = model(inputs)
+def _run_step(model, opt, mode, inputs, targets, device) -> None:
+    with nvtx.range("forward"):
+        logits = model(inputs)
+        _sync(device)
+
     if mode in ("fwdbwd", "fwdbwdopt"):
-        loss = cross_entropy(logits, targets)
-        loss.backward()
+        with nvtx.range("backward"):
+            loss = cross_entropy(logits, targets)
+            loss.backward()
+            _sync(device)
     if mode == "fwdbwdopt":
-        opt.step()
-        opt.zero_grad()
+        with nvtx.range("optmizer"):
+            opt.step()
+            opt.zero_grad()
+            _sync(device)
 
 
 def measure_size(
@@ -95,20 +102,21 @@ def measure_size(
 
     inputs, targets = _make_batch(model_cfg, train_cfg)
 
-    for _ in range(bench_cfg.warm_up_steps):
-        _run_step(model, opt, bench_cfg.mode, inputs, targets)
+    with nvtx.range("warm_up"):
+        for _ in range(bench_cfg.warm_up_steps):
+            _run_step(model, opt, bench_cfg.mode, inputs, targets, device)
     model.zero_grad(set_to_none=True)
     _sync(device)
 
     times = []
-    with nvtx.range("benchmark"):
-        for _ in range(bench_cfg.execution_steps):
-            _sync(device)
-            start = timeit.default_timer()
-            _run_step(model, opt, bench_cfg.mode, inputs, targets)
-            _sync(device)
-            end = timeit.default_timer()
-            times.append(end - start)
+    for _ in range(bench_cfg.execution_steps):
+        _sync(device)
+        start = timeit.default_timer()
+        with nvtx.range("one_step"):
+            _run_step(model, opt, bench_cfg.mode, inputs, targets, device)
+        _sync(device)
+        end = timeit.default_timer()
+        times.append(end - start)
 
     times = np.asarray(times)
 

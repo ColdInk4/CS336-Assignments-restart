@@ -134,9 +134,12 @@ if __name__ == "__main__":
         dtype=args.dtype,
     )
 
-    wide = results_to_wide(long_df, modes, sizes)
-    print("\n================ Summary ================")
-    print(wide.to_string())
-
-    print("\n================ Typst ================")
-    print(wide.style.to_typst())
+    for ctx_len in ctx_lens:
+        sub = long_df[long_df["ctx_len"] == ctx_len]
+        if sub.empty:
+            continue
+        wide = results_to_wide(sub, modes, sizes)
+        print(f"\n================ ctx_len = {ctx_len} ================")
+        print(wide.to_string())
+        print("\n-- Typst --")
+        print(wide.style.to_typst())

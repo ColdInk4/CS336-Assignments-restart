@@ -1,8 +1,9 @@
-CUDA_VISIBLE_DEVICES=2 uv run nsys profile \
--o reports/test_%n \
+CUDA_VISIBLE_DEVICES=5 uv run nsys profile \
+-o "reports/small-ctx(256_512_2048)_fwd" \
 --trace=cuda,cudnn,cublas,osrt,nvtx,cublas-verbose \
---pytorch=functions-trace,autograd-shapes-nvtx \
---nvtx-capture="benchmark" \
+--nvtx-capture="one_step" \
 -- python scripts/benchmark/run_benchmark.py \
 --sizes small \
---ctx-lens 4096 \
+--iters 3 \
+--ctx-lens 256 512 2048 \
+--modes fwd \
