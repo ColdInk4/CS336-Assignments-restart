@@ -15,12 +15,20 @@ def set_seed(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
-MODEL_PRESETS = {
-    "small": dict(d_model=768, d_ff=3072, num_layers=12, num_heads=12),
-    "medium": dict(d_model=1024, d_ff=4096, num_layers=24, num_heads=16),
-    "large": dict(d_model=1280, d_ff=5120, num_layers=36, num_heads=20),
-    "xl": dict(d_model=2560, d_ff=10240, num_layers=32, num_heads=32),
-    "10B": dict(d_model=4608, d_ff=12288, num_layers=50, num_heads=36),
+@dataclass(frozen=True)
+class ModelPreset:
+    d_model: int
+    d_ff: int
+    num_layers: int
+    num_heads: int
+
+
+MODEL_PRESETS: dict[str, ModelPreset] = {
+    "small": ModelPreset(d_model=768, d_ff=3072, num_layers=12, num_heads=12),
+    "medium": ModelPreset(d_model=1024, d_ff=4096, num_layers=24, num_heads=16),
+    "large": ModelPreset(d_model=1280, d_ff=5120, num_layers=36, num_heads=20),
+    "xl": ModelPreset(d_model=2560, d_ff=10240, num_layers=32, num_heads=32),
+    "10B": ModelPreset(d_model=4608, d_ff=12288, num_layers=50, num_heads=36),
 }
 
 
