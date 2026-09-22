@@ -76,15 +76,15 @@
 #let solution(id, title, points, prompt, answer: []) = [
   #heading(level: 1)[Problem (#raw(id)): #title (#points)]
   #v(0.25em)
+  #prompt-box[
+    #section-label[Prompt]
+    #prompt
+  ]  
   #set text(
   font: "LXGW WenKai",
   lang: "zh",
   region: "CN",
 )
-  #prompt-box[
-    #section-label[Prompt]
-    #prompt
-  ]
   #answer-box[
     #section-label[Answer]
     #answer

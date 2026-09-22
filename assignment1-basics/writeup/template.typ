@@ -71,6 +71,11 @@
 ]
 
 #let answer(body) = answer-box[
+  #set text(
+    font: "LXGW WenKai",
+    lang: "zh",
+    region: "CN",
+  )
   #section-label[Answer]
   #body
 ]
