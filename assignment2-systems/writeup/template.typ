@@ -4,6 +4,7 @@
 // problem inside the same Typst file (`solution.typ`), so the problem layout
 // is described by a single `solution(...)` call.
 
+
 #let section-label(body) = block(
   above: 0pt,
   below: 0.65em,
@@ -75,6 +76,11 @@
 #let solution(id, title, points, prompt, answer: []) = [
   #heading(level: 1)[Problem (#raw(id)): #title (#points)]
   #v(0.25em)
+  #set text(
+  font: "LXGW WenKai",
+  lang: "zh",
+  region: "CN",
+)
   #prompt-box[
     #section-label[Prompt]
     #prompt
