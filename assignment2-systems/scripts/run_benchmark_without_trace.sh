@@ -1,9 +1,9 @@
 CUDA_VISIBLE_DEVICES=5 uv run nsys profile \
--o "reports/small-ctx(256_512_2048)_fwd" \
+-o "reports/large-ctx(256_512_1024)_fwd_softmax" \
 --trace=cuda,cudnn,cublas,osrt,nvtx,cublas-verbose \
 --nvtx-capture="one_step" \
 -- python scripts/benchmark/run_benchmark.py \
---sizes small \
---iters 3 \
+--sizes large \
+--iters 1 \
 --ctx-lens 256 512 2048 \
 --modes fwd \
