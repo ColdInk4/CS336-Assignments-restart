@@ -113,13 +113,6 @@ def parse_args():
 
 if __name__ == "__main__":
 
-    import cs336_basics
-    from annotated_cs336_basics.transformer.functions import (
-        annotated_scaled_dot_product_attention,
-    )
-
-    cs336_basics.transformer.functions = annotated_scaled_dot_product_attention
-
     args = parse_args()
 
     sizes = tuple(args.sizes)
