@@ -6,4 +6,5 @@ CUDA_VISIBLE_DEVICES=5 uv run nsys profile \
 --sizes large \
 --iters 3 \
 --ctx-lens 256 512 1024 \
---modes fwd
+--modes fwd \
+--dtype bf16
