@@ -14,13 +14,17 @@ def scaled_dot_product_attention(
     mask: Bool[Tensor, " ... queries keys"] | None = None,
 ) -> Float[Tensor, " ... queries d_v"]:
     d_k = Q.size(-1)
-    with nvtx.range("computing attention scores"):
+    with nvtx.range("computing attention scores[matmul]"):
         pre_softmax_values = einx.dot(
             " ... queries [d_k], ... keys [d_k] -> ... queries keys", Q, K
-        ) / sqrt(d_k)
+        )
 
-    if mask is not None:
-        pre_softmax_values.masked_fill_(~mask, -float("inf"))
+    with nvtx.range("computing attention scores[element divide]"):
+        pre_softmax_values = pre_softmax_values / sqrt(d_k)
+
+    with nvtx.range("mask fill"):
+        if mask is not None:
+            pre_softmax_values.masked_fill_(~mask, -float("inf"))
 
     with nvtx.range("computing softmax"):
         after_softmax_values = softmax(pre_softmax_values, -1)

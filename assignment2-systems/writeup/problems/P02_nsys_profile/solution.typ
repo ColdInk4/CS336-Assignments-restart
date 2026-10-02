@@ -34,6 +34,8 @@
 
     之前一直对不上，主要是因为 CUDA 默认是异步执行的，标签内部没有 `sync`。CPU 把 CUDA 工作提交出去之后就可以继续执行，因此 CPU 侧的 `forward` range 可能已经结束了，但对应的 GPU kernels 还在继续执行，所以 `Threads → python` 中的 `forward` 会比 `CUDA HW` 中投影出的 `forward` 更短，边界也会看起来对不上。（总之还是要加 sync!）
 
+    后来发现 GUI 上面的`CUDA HW`包围盒（NVTX标签）跨度也不是 GPU kernel 累计，里面还会有 kernel 空闲的时间。要去看 CUDA GPU Kernel Summary
+
     我选的 model sizes 是 small(context_length = 256, 512, 2048) 和 large(context_length = 256, 512, 1024)。
   
     #table(
@@ -49,15 +51,17 @@
 在 forward 模式下：
 
    #table(
-  columns: 5,
-  [context_length], [256], [512], [1024], [2048],
-  [size], [], [], [],[],
-
-  [small], [38.396], [57.742],  [], [319.943], 
-  [large], [182.279], [358.668], [794.869], [], 
+  columns: 4,
+  [model],[context_length], [墙钟 / NVTX forward (ms)], [GPU kernel 累计(ms)],
+  [small], [256], [39.231], [26.673],
+  [small], [512], [57.628], [54.721],
+  [small], [2048], [320.044], [318.165],
+  [large], [256], [181.460], [176.050],
+  [large], [512], [358.172], [353.063],
+  [large], [1024], [795.081], [790.180],
 )
 
-在 context length = 512 时，Nsight Systems 测得 small 和 large 模型的 forward 时间分别为 57.742 ms 和 358.668 ms，而之前 Python `timeit` 的结果分别为 57.95 ms 和 360.57 ms。差不多。
+在 context length = 512 时，Nsight Systems 测得 small 和 large 模型的 forward 时间分别为 57.628 ms 和 358.172 ms，而之前 Python `timeit` 的结果分别为 57.95 ms 和 360.57 ms。差不多。
 
 (b) 
 #table(
@@ -98,7 +102,7 @@ columns: 4,
 [253 / 557.831 ms],
 )
 
-列出最大时长 kernel 如下：
+列出累计 GPU 时间最大 kernel 如下：
 
 #table(
   columns: 3,
@@ -143,8 +147,8 @@ columns: 4,
 
 总体来看，除 GEMM 外，forward pass 中占比较明显的 kernel 包括 elementwise
 mul、add、div、masked_fill、copy、exp 以及 reduce-sum / reduce-max。这些非
-矩阵乘法 kernel 的合计占比随 context length 明显上升：small 模型从 ~14%
-(256) 增至 ~29% (2048)，large 模型从 ~9% (256) 增至 ~17% (1024)。这反映
+矩阵乘法 kernel 的合计占比随 context length 明显上升：small 模型从 ~18.2%
+(256) 增至 ~31% (2048)，large 模型从 ~11.8% (256) 增至 ~18.5% (1024)。这反映
 出长 context 下 attention 相关的 elementwise、mask 与 reduction 操作（而非
 GEMM 本身）成为更重要的开销来源。
 
@@ -167,5 +171,46 @@ GEMM 本身）成为更重要的开销来源。
 完整训练步中，矩阵乘法占比相比 forward-only 下降约 6–15 个百分点：small 从约 81.8/79.8/69.0% 降到 67.2/70.2/63.1%，large 从约 88.2/85.9/81.5% 降到 73.2/76.9/75.5%。不过 GEMM 依然是占比最大的 kernel 类别（63–77%）；非 GEMM kernel 合计占比相应上升，主要来自 backward 的 `neg`、`sigmoid_backward`、`copy`、`reduction`，以及 AdamW 的 `pow`、`sqrt`、`div`、`mul`、`add`、`fill` 等 elementwise/reduction kernel。
 
 (e)
+
+softmax 作用在 $B times H times T times T$ 的注意力分数矩阵上：按 add（减去 max）/ sum / div 各计 1 FLOP 的约定，其 FLOPs 为 $3 times B times H times T^2$（exp 作为超越函数不计入，amax 为比较亦不计入）；两个 attention matmul（$Q K^T$ 与 $A V$）各为 $2 times B times T^2 times d$，合计 $4 times B times T^2 times d$。故
+
+$ ("softmax FLOPs") / ("matmul FLOPs") = (3 B H T^2) / (4 B T^2 d) = 3 / 4 times H / d = 0.75 / d_"head" = 0.0117 $
+
+runtime 如下表所示（在final matmul中有copy的部分，我们只采用了其中的矩阵运算时间）
+#table(
+  columns: 5,
+  [size], [context], [softmax($mu s$)], [matmul($mu s$)], [ratio(softmax/matmul)],
+
+  [small], [256], [82.784], [115.873(43.585+72.288)], [0.7144],
+  [small], [512], [328.576], [412.416(150.432+261.984)], [0.7967], 
+  [small], [2048], [4,547], [6,077(2,067+4,010)], [0.7482], 
+
+  [large], [256], [138.176], [197.696(61.952+135.744)], [0.6989], 
+  [large], [512], [520.864], [613.601(225.409+388.192)], [0.8489], 
+  [large], [1,024], [1,929], [2,384(869+1,515)], [0.8091], 
+)
+
+在同一个 self-attention 层内，softmax 的累计 GPU 时间约为两个 attention matmul（$Q K^T$ 与 $A V$）之和的 70%--85%，而它的 FLOPs 只有 matmul 的约 1.2%——即每 FLOP 的耗时高出约 60--70 倍。
+
+- $Q K^T$ vs $A V$：FLOPs 完全一样，时间差 1.9 倍
+  - 查看算子，时间短的是 `ampere_sgemm_128x128_tn`，长的是 `ampere_sgemm_128x128_nn`，推测与二者输入形状有关
+#table(
+  columns: 3,
+  [kernel], [读], [写],
+
+  [$Q K^T$], [Q[B,H,T,d] + K[B,H,d,T]], [[B,H,T,T]], 
+  [$A V$], [A[B,H,T,T] + V[B,H,T,d]], [[B,H,T,d]], 
+)
+- softmax：对同一块 s*s 矩阵反复读写
+#table(
+  columns: 3,
+  [kernel], [读], [写],
+
+  [amax], [[B,H,T,T]], [[B,H,T,1]], 
+  [sub], [[B,H,T,T] + [B,H,T,1]], [[B,H,T,T]], 
+  [exp], [[B,H,T,T]], [[B,H,T,T]], 
+  [sum], [[B,H,T,T]], [[B,H,T,1]], 
+  [div], [[B,H,T,T] + [B,H,T,1]], [[B,H,T,T]], 
+)
 ]
 )
