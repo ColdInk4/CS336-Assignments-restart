@@ -28,23 +28,29 @@
     #deliverable[A 2-3 sentence response with your timings and commentary.]
   ],
   answer: [
-    (a) 
+    (a)
     - the model parameters within the autocast context: FP32
     - the output of the first feed-forward layer (ToyModel.fc1): FP16
     - the output of layer norm (ToyModel.ln): FP32
     - the model's predicted logits: FP16
-    - the loss: FP32
+    - the cross-entropy loss (computed inside the autocast context): FP32
     - the model's gradients: FP32
-    
-    (b) 最敏感的部分是均值与方差的计算（沿特征维度的 reduction）：方差需要累加 $x^2$，FP16 只有 5 个指数位（最大约 65504），很容易溢出成 inf 进而在反向传播中产生 NaN；同时 var = E[$x^2$] − (E[$x$])² 的相减在 10 位尾数下会发生灾难性抵消，且 eps = 1e-5 低于 FP16 的最小正规数而被直接吞掉（除法和开方本身反而不是瓶颈）。
 
-    BF16 的指数位与 FP32 相同（8 位），动态范围的问题彻底消失，$x^2$ 不会溢出、eps 也能表示；但 BF16 尾数只有 7 位，mean/var 的量化误差和抵消问题依然存在。
+    (b) 敏感点有两层。
 
-    因此改用 BF16 后仍然应当区别对待。
+第一层是输入表示。低精度输入可能在进入 kernel 之前就已经丢失波动：$mu = 50, sigma = 0.01$ 时 FP16 只剩 3 档、BF16 整批舍到 50.0（std 归零），LN 输出恒 0——波动在进 kernel 前就没了，内部再用 fp32 累加也救不回来。
+
+第二层是归约与归一化本身。累加误差随维度增长；$op("rstd") = 1 \/ sqrt(op("var") + epsilon)$ 把方差误差缩到约一半（相对形式 $delta_(op("rstd")) \/ op("rstd") approx -1/2 dot delta_(op("var")) \/ (op("var") + epsilon)$）；而当 var 被舍成 0 或负数时，$epsilon = 10^(-5)$ 是避免 inf/NaN 的唯一护栏。
+
+区分 FP16 与 BF16 的分界行是 $mu = 50, sigma = 0.2$：FP16 此时 42 档、std 完好，BF16 只剩 7 档——50 附近的量化步长是 FP16 的 8 倍。
+
+#h(0.6em)（注：公式本身也得选对。即使 fp32 输入、表示无问题，naive 一阶式 $E[x^2] - mu^2$ 也会因灾难性抵消被完全抵消成 $0$，而两遍式给出 $9.75 times 10^(-5)$；实测 kernel 与两遍式在输出空间 max 差 $1.29 times 10^(-5)$，与 naive 差 $7.32$。）
+
+换 BF16 后结论不变、只会更严重：尾数从 10 位降到 7 位，同样 $mu$ 附近的量化步长是 FP16 的 8 倍；BF16 唯一的优势是指数域与 FP32 相同、不溢出，解决的是动态范围而非精度。所以统计量与归一化仍须以 FP32 计算（实测 BF16 autocast 下 layer_norm 输出即 float32）。
 
     (c)
 
-    在BF16下：
+  *表 1：BF16 mixed precision（ms，mean ± std）*
     #table(
   columns: 3,
   [mode], [fwd], [fwdbwd],
@@ -57,7 +63,7 @@
   [10B], [422.55 ± 0.90], [OOM],
 )
 
-  在FP32下：
+  *表 2：FP32 full precision（ms，mean ± std）*
 #table(
   columns: 3,
   [mode], [fwd], [fwdbwd],
@@ -70,10 +76,6 @@
   [10B], [OOM], [OOM],
 )
 
-在所有模型规模上，BF16 混合精度都更快，且规模越大加速越明显：前向加速比从 1.6#sym.times（small，35.5 对 58.2 ms）上升到 7.5#sym.times（XL，146.8 对 1094.7 ms），前向加反向则从 2.2#sym.times（84.2 对 181.5 ms）上升到 6.4#sym.times（532.3 对 3386.9 ms）。
-
-大模型收益更高，是因为其运行时间主要消耗在矩阵乘（GEMM）上，而 GEMM 的吞吐随低精度张量核心的使用而提升；小模型则受 kernel 启动和逐元素算子开销限制，这部分混合精度无法压缩。
-
-此外，BF16 将激活内存占用减半，使 10B 模型在前向能放进显存（422.6 ms）而 FP32 直接 OOM；但前向加反向在 10B 下仍然 OOM，因为梯度和优化器状态仍保持 FP32。
+ BF16 混合精度在所有规模上都更快，且规模越大收益越大：前向加速比从 1.6×（small，35.5 vs FP32 58.2 ms）升到 7.5×（xl，146.8 vs 1094.7 ms），前向加反向从 2.2×（84.2 vs 181.5 ms）升到 6.4×（532.3 vs 3386.9 ms）
   ],
 )
