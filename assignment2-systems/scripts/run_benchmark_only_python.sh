@@ -1,6 +1,8 @@
 CUDA_VISIBLE_DEVICES=5 uv run \
 python scripts/benchmark/run_benchmark.py \
---sizes small medium large xl 10B \
---iters 10 \
---modes fwd fwdbwd \
---dtype float32
+--sizes large \
+--iters 1 \
+--ctx-lens 128 1024 \
+--modes fwd fwdbwdopt \
+--mem-profile \
+--mixed-dtype bfloat16

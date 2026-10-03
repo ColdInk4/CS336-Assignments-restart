@@ -34,5 +34,9 @@
     #deliverable[Screenshots from Nsight Systems and a 1-2 paragraph response.]
   ],
   answer: [
+    由于 xl + ctx(2048) 在本机OOM，所以决定采用 large+ctx (128/1024) 来作答。
+  
+  
+  (a) 
   ],
 )

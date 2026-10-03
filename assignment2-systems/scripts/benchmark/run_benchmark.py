@@ -56,7 +56,10 @@ def run_sweep(
     warmup,
     iters,
     device,
+    mixed_dtype,
     dtype,
+    mem_profile,
+    snapshot_dir,
 ):
     """扫 (ctx_len, size, mode) 所有组合，返回长表。"""
     rows = []
@@ -66,6 +69,7 @@ def run_sweep(
             context_length=ctx_len,
             device=device,
             dtype=dtype,
+            mixed_dtype=mixed_dtype,
         )
         for mode in modes:
             print(f"\n########## ctx={ctx_len} | mode={mode} ##########")
@@ -74,6 +78,8 @@ def run_sweep(
                 execution_steps=iters,
                 mode=mode,
                 sizes=sizes,
+                mem_profile=mem_profile,
+                snapshot_dir=snapshot_dir,
             )
             for r in measure_all_sizes(model_cfg, opt_cfg, train_cfg, cfg):
                 row = vars(r)
@@ -104,12 +110,23 @@ def parse_args():
         default=["fwd", "fwdbwd", "fwdbwdopt"],
     )
     p.add_argument(
-        "--dtype",
+        "--mixed-dtype",
         type=str,
         default="float32",
         choices=["float32", "bfloat16"],
         help="compute dtype: fp32 (no autocast) or bf16 (torch.autocast)",
     )
+    p.add_argument(
+        "--dtype",
+        type=str,
+        default="float32",
+    )
+    p.add_argument(
+        "--mem-profile",
+        action="store_true",
+        help="record CUDA memory history and dump a snapshot",
+    )
+    p.add_argument("--snapshot-dir", type=str, default="snapshots")
     p.add_argument("--warmup", type=int, default=5)
     p.add_argument("--iters", type=int, default=10)
     p.add_argument("--batch-size", type=int, default=4)
@@ -129,25 +146,21 @@ if __name__ == "__main__":
     opt_cfg = AdamWConfig()
     train_cfg = TrainingConfig(batch_size=args.batch_size, seed=42)
 
-    ctx = (
-        torch.autocast("cuda", dtype=torch.bfloat16)
-        if args.dtype == "bf16"
-        else nullcontext()
+    long_df = run_sweep(
+        opt_cfg=opt_cfg,
+        train_cfg=train_cfg,
+        vocab_size=args.vocab_size,
+        ctx_lens=ctx_lens,
+        sizes=sizes,
+        modes=modes,
+        warmup=args.warmup,
+        iters=args.iters,
+        device=args.device,
+        mixed_dtype=args.mixed_dtype,
+        dtype=args.dtype,
+        mem_profile=args.mem_profile,
+        snapshot_dir=args.snapshot_dir,
     )
-
-    with ctx:
-        long_df = run_sweep(
-            opt_cfg=opt_cfg,
-            train_cfg=train_cfg,
-            vocab_size=args.vocab_size,
-            ctx_lens=ctx_lens,
-            sizes=sizes,
-            modes=modes,
-            warmup=args.warmup,
-            iters=args.iters,
-            device=args.device,
-            dtype=args.dtype,
-        )
 
     for ctx_len in ctx_lens:
         sub = long_df[long_df["ctx_len"] == ctx_len]

@@ -13,9 +13,10 @@ from utils.configs import (
 )
 from utils.results import BenchmarkResult
 import numpy as np
-
+import os
 from cs336_basics.transformer import TransformerLM
 from cs336_basics.training import AdamW, cross_entropy
+from contextlib import nullcontext
 
 
 def _build_model(size_name: str, model_cfg: ModelConfig):
@@ -72,8 +73,13 @@ def _sync(device):
 
 
 def _run_step(model, opt, mode, inputs, targets, device) -> None:
+
     with nvtx.range("forward"):
-        logits = model(inputs)
+        if mode == "fwd":
+            with torch.no_grad():
+                logits = model(inputs)
+        else:
+            logits = model(inputs)
         _sync(device)
 
     if mode in ("fwdbwd", "fwdbwdopt"):
@@ -82,7 +88,7 @@ def _run_step(model, opt, mode, inputs, targets, device) -> None:
             loss.backward()
             _sync(device)
     if mode == "fwdbwdopt":
-        with nvtx.range("optmizer"):
+        with nvtx.range("optimizer"):
             opt.step()
             opt.zero_grad()
             _sync(device)
@@ -100,26 +106,51 @@ def measure_size(
     model = _build_model(size_name, model_cfg)
     opt = _build_opt(model, opt_cfg)
 
+    ctx = (
+        torch.autocast("cuda", dtype=torch.bfloat16)
+        if model_cfg.mixed_dtype == "bfloat16"
+        else nullcontext()
+    )
+
     inputs, targets = _make_batch(model_cfg, train_cfg)
 
-    with nvtx.range("warm_up"):
-        for _ in range(bench_cfg.warm_up_steps):
-            _run_step(model, opt, bench_cfg.mode, inputs, targets, device)
+    with ctx:
+        with nvtx.range("warm_up"):
+            for _ in range(bench_cfg.warm_up_steps):
+                _run_step(model, opt, bench_cfg.mode, inputs, targets, device)
     model.zero_grad(set_to_none=True)
     _sync(device)
+
+    if bench_cfg.mem_profile:
+        torch.cuda.memory._record_memory_history(max_entries=1000000)
 
     times = []
     for _ in range(bench_cfg.execution_steps):
         _sync(device)
         start = timeit.default_timer()
-        with nvtx.range("one_step"):
-            _run_step(model, opt, bench_cfg.mode, inputs, targets, device)
+        with ctx:
+            with nvtx.range("one_step"):
+                _run_step(model, opt, bench_cfg.mode, inputs, targets, device)
         _sync(device)
         end = timeit.default_timer()
         times.append(end - start)
 
-    times = np.asarray(times)
+    if bench_cfg.mem_profile:
+        tag = (
+            f"mem_{size_name}"
+            f"_ctx{model_cfg.context_length}"
+            f"_bs{train_cfg.batch_size}"
+            f"_{bench_cfg.mode}"
+            f"_{model_cfg.dtype}"
+            f"_mix_{model_cfg.mixed_dtype}"
+        )
+        os.makedirs(bench_cfg.snapshot_dir, exist_ok=True)
+        snapshot_path = os.path.join(bench_cfg.snapshot_dir, f"{tag}.pickle")
+        torch.cuda.memory._dump_snapshot(snapshot_path)
+        print(f"snapshot saved: {snapshot_path}")
+        torch.cuda.memory._record_memory_history(enabled=None)
 
+    times = np.asarray(times)
     return BenchmarkResult(
         size=size_name,
         mode=bench_cfg.mode,

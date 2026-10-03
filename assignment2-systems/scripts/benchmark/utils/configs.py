@@ -38,6 +38,7 @@ class ModelConfig:
     context_length: int = 512
     rope_theta: float = 10000
     device: Literal["cpu", "cuda"] = "cuda"
+    mixed_dtype: Literal["float32", "bfloat16"] = "float32"
     dtype: Literal["float32"] = "float32"
 
 
@@ -62,3 +63,5 @@ class BenchmarkConfig:
     execution_steps: int = 20
     mode: Literal["fwd", "fwdbwd", "fwdbwdopt"] = "fwdbwdopt"
     sizes: tuple[str, ...] = ("small", "medium", "large", "xl", "10B")
+    mem_profile: bool = False
+    snapshot_dir: str = "snapshot"
