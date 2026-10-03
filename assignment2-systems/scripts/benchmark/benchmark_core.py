@@ -72,19 +72,26 @@ def _sync(device):
         torch.cuda.synchronize(device)
 
 
-def _run_step(model, opt, mode, inputs, targets, device) -> None:
+def _run_step(model, opt, mode, inputs, targets, device, mixed_dtype) -> None:
 
+    ctx = (
+        torch.autocast("cuda", dtype=torch.bfloat16)
+        if mixed_dtype == "bfloat16"
+        else nullcontext()
+    )
     with nvtx.range("forward"):
-        if mode == "fwd":
-            with torch.no_grad():
+        with ctx:
+            if mode == "fwd":
+                with torch.no_grad():
+                    logits = model(inputs)
+            else:
                 logits = model(inputs)
-        else:
-            logits = model(inputs)
         _sync(device)
 
     if mode in ("fwdbwd", "fwdbwdopt"):
         with nvtx.range("backward"):
-            loss = cross_entropy(logits, targets)
+            with ctx:
+                loss = cross_entropy(logits, targets)
             loss.backward()
             _sync(device)
     if mode == "fwdbwdopt":
@@ -106,34 +113,48 @@ def measure_size(
     model = _build_model(size_name, model_cfg)
     opt = _build_opt(model, opt_cfg)
 
-    ctx = (
-        torch.autocast("cuda", dtype=torch.bfloat16)
-        if model_cfg.mixed_dtype == "bfloat16"
-        else nullcontext()
-    )
-
     inputs, targets = _make_batch(model_cfg, train_cfg)
 
-    with ctx:
-        with nvtx.range("warm_up"):
-            for _ in range(bench_cfg.warm_up_steps):
-                _run_step(model, opt, bench_cfg.mode, inputs, targets, device)
+    with nvtx.range("warm_up"):
+        for _ in range(bench_cfg.warm_up_steps):
+            _run_step(
+                model,
+                opt,
+                bench_cfg.mode,
+                inputs,
+                targets,
+                device,
+                model_cfg.mixed_dtype,
+            )
     model.zero_grad(set_to_none=True)
     _sync(device)
 
     if bench_cfg.mem_profile:
         torch.cuda.memory._record_memory_history(max_entries=1000000)
 
+    torch.cuda.reset_peak_memory_stats()
+
     times = []
     for _ in range(bench_cfg.execution_steps):
         _sync(device)
         start = timeit.default_timer()
-        with ctx:
-            with nvtx.range("one_step"):
-                _run_step(model, opt, bench_cfg.mode, inputs, targets, device)
+        with nvtx.range("one_step"):
+            _run_step(
+                model,
+                opt,
+                bench_cfg.mode,
+                inputs,
+                targets,
+                device,
+                model_cfg.mixed_dtype,
+            )
         _sync(device)
         end = timeit.default_timer()
         times.append(end - start)
+
+    print(
+        f"max_memory_allocated: {torch.cuda.max_memory_allocated()/1024/1024/1024:.3} GiB"
+    )
 
     if bench_cfg.mem_profile:
         tag = (
