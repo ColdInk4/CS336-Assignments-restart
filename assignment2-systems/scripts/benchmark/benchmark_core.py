@@ -113,6 +113,8 @@ def measure_size(
     model = _build_model(size_name, model_cfg)
     opt = _build_opt(model, opt_cfg)
 
+    torch._dynamo.reset()
+    model = torch.compile(model)
     inputs, targets = _make_batch(model_cfg, train_cfg)
 
     with nvtx.range("warm_up"):
@@ -153,7 +155,7 @@ def measure_size(
         times.append(end - start)
 
     print(
-        f"max_memory_allocated: {torch.cuda.max_memory_allocated()/1024/1024/1024:.3} GiB"
+        f"max_memory_allocated: {torch.cuda.max_memory_allocated()/1024/1024:.3f} MiB"
     )
 
     if bench_cfg.mem_profile:

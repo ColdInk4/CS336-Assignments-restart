@@ -1,4 +1,6 @@
-from layers.scaled_dot_product_attention import scaled_dot_product_attention
+from cs336_basics.transformer.functions.scaled_dot_product_attention import (
+    scaled_dot_product_attention,
+)
 import torch
 import timeit
 import statistics
@@ -12,6 +14,10 @@ device = torch.device("cuda")
 
 def forward(Q, K, V):
     return scaled_dot_product_attention(Q, K, V)
+
+
+def compiled_forward(Q, K, V):
+    return torch.compile(scaled_dot_product_attention)(Q, K, V)
 
 
 for d_model in d_models:
@@ -32,8 +38,10 @@ for d_model in d_models:
                 requires_grad=False,
                 device=device,
             )
+            torch._dynamo.reset()
+            compiled_forward = torch.compile(scaled_dot_product_attention)
             for _ in range(5):
-                forward(Q, K, V).backward(gradient=gradient)
+                compiled_forward(Q, K, V).backward(gradient=gradient)
             torch.cuda.synchronize()
             forward_time = []
             backward_time = []
@@ -41,7 +49,7 @@ for d_model in d_models:
             for _ in range(100):
 
                 start = timeit.default_timer()
-                y = forward(Q, K, V)
+                y = compiled_forward(Q, K, V)
                 torch.cuda.synchronize()
                 forward_time.append(timeit.default_timer() - start)
 
