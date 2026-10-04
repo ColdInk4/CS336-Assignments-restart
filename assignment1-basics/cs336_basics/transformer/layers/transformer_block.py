@@ -6,7 +6,6 @@ from .rope import RotaryPositionalEmbedding
 import torch
 from torch import Tensor
 from jaxtyping import Float
-import torch.cuda.nvtx as nvtx
 
 
 class TransformerBlock(nn.Module):
@@ -41,7 +40,6 @@ class TransformerBlock(nn.Module):
         self.ln2 = RMSNorm(d_model, device=device, dtype=dtype)
         self.ffn = SwiGLU(d_model, d_ff, device, dtype)
 
-    @nvtx.range("Transformer Block")
     def forward(
         self, in_features: Float[Tensor, " batch sequence_length d_model"]
     ) -> Float[Tensor, " batch sequence_length d_model"]:
